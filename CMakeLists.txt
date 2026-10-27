@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(triangles_3d CXX)
+project(triangles_3d LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,8 +25,14 @@ target_link_libraries(triangles_3d PRIVATE triangle_input)
 find_package(glfw3 3.3 REQUIRED)
 find_package(OpenGL REQUIRED)
 
+add_library(glad STATIC third_party/glad/src/gl.c)
+
+target_include_directories(glad PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/include"
+)
+
 add_executable(window_demo src/window_demo.cpp)
-target_link_libraries(window_demo PRIVATE glfw OpenGL::GL)
+target_link_libraries(window_demo PRIVATE glad glfw OpenGL::GL)
 
 include(CTest)
 if (BUILD_TESTING)
