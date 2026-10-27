@@ -22,9 +22,13 @@ target_include_directories(triangle_input PUBLIC
 
 target_link_libraries(triangles_3d PRIVATE triangle_input)
 
+find_package(glfw3 3.3 REQUIRED)
+find_package(OpenGL REQUIRED)
+
+add_executable(window_demo src/window_demo.cpp)
+target_link_libraries(window_demo PRIVATE glfw OpenGL::GL)
 
 include(CTest)
-
 if (BUILD_TESTING)
     if (POLICY CMP0135)
         cmake_policy(SET CMP0135 NEW)
