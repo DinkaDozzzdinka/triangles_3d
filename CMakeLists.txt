@@ -4,16 +4,43 @@ project(triangles_3d CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_executable(triangles_3d src/main.cpp)
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-add_compile_options(-Wall -Wextra -Wpedantic -Werror -O2)
+    target_compile_options(triangles_3d PRIVATE
+        -Wall -Wextra -Wpedantic -Werror
+    )
 endif()
 
-add_executable(triangles_3d src/main.cpp)
+add_library(triangle_input STATIC src/input.cpp)
 
 target_compile_features(triangles_3d PUBLIC cxx_std_17)
 
-target_include_directories(triangles_3d PUBLIC 
+target_include_directories(triangle_input PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
+target_link_libraries(triangles_3d PRIVATE triangle_input)
+
+
+include(CTest)
+
+if (BUILD_TESTING)
+    if (POLICY CMP0135)
+        cmake_policy(SET CMP0135 NEW)
+    endif()
+
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+
+    add_executable(input_tests tests/input_test.cpp)
+    target_link_libraries(input_tests PRIVATE triangle_input GTest::gtest_main)
+
+    include(GoogleTest)
+    gtest_discover_tests(input_tests)
+endif()
