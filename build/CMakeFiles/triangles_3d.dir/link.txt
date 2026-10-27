@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/triangles_3d.dir/src/main.cpp.o -o triangles_3d 
