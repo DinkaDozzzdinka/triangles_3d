@@ -188,7 +188,6 @@ int main()
 
     }
 
-    // OpenGL-объекты освобождаем, пока контекст окна ещё существует.
     glUseProgram(0);
     glBindVertexArray(0);
     glDeleteProgram(program);
