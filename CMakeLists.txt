@@ -34,6 +34,15 @@ target_include_directories(glad PUBLIC
 add_executable(window_demo src/window_demo.cpp)
 target_link_libraries(window_demo PRIVATE glad glfw OpenGL::GL)
 
+add_library(triangle_geometry STATIC src/geometry.cpp)
+
+target_include_directories(triangle_geometry PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+target_link_libraries(triangles_3d PRIVATE triangle_geometry)
+
+
 include(CTest)
 if (BUILD_TESTING)
     if (POLICY CMP0135)
@@ -50,7 +59,11 @@ if (BUILD_TESTING)
 
     add_executable(input_tests tests/input_test.cpp)
     target_link_libraries(input_tests PRIVATE triangle_input GTest::gtest_main)
-
     include(GoogleTest)
     gtest_discover_tests(input_tests)
-endif()
+
+    
+    add_executable(geometry_tests tests/geometry_test.cpp)
+    target_link_libraries(geometry_tests PRIVATE triangle_geometry GTest::gtest_main)
+    gtest_discover_tests(geometry_tests)
+    endif()
