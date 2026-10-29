@@ -461,4 +461,132 @@ namespace triangles
         EXPECT_FALSE(PointInTriangle({1.0, 1.0}, triangle));
     }
 
+
+    namespace
+    {
+        void ExpectTriangleIntersectionInAnyOrder(const Triangle2& lhs,
+                                                 const Triangle2& rhs, bool expected)
+        {
+            std::array<std::size_t, 3> lhsOrder{0, 1, 2};
+            do
+            {
+                const Triangle2 first{{lhs.vertices2[lhsOrder[0]],
+                                       lhs.vertices2[lhsOrder[1]],
+                                       lhs.vertices2[lhsOrder[2]]}};
+                std::array<std::size_t, 3> rhsOrder{0, 1, 2};
+                do
+                {
+                    SCOPED_TRACE(::testing::Message()
+                        << "first vertex order: " << lhsOrder[0] << lhsOrder[1] << lhsOrder[2]
+                        << ", second vertex order: " << rhsOrder[0] << rhsOrder[1] << rhsOrder[2]);
+                    const Triangle2 second{{rhs.vertices2[rhsOrder[0]],
+                                            rhs.vertices2[rhsOrder[1]],
+                                            rhs.vertices2[rhsOrder[2]]}};
+
+                    EXPECT_EQ(TrianglesIntersect(first, second), expected);
+                    EXPECT_EQ(TrianglesIntersect(second, first), expected);
+                } while (std::next_permutation(rhsOrder.begin(), rhsOrder.end()));
+            } while (std::next_permutation(lhsOrder.begin(), lhsOrder.end()));
+        }
+    }
+
+    TEST(TrianglesIntersectTest, SeparatedTrianglesDoNotIntersect)
+    {
+        const Triangle2 first{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        const Triangle2 second{{Point2{3.0, 3.0}, Point2{5.0, 3.0}, Point2{3.0, 5.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, false);
+    }
+
+    TEST(TrianglesIntersectTest, OverlappingBoundingBoxesDoNotImplyIntersection)
+    {
+        const Triangle2 first{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        const Triangle2 second{{Point2{2.0, 2.0}, Point2{2.0, 0.5}, Point2{0.5, 2.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, false);
+    }
+
+    TEST(TrianglesIntersectTest, TrianglesPartiallyOverlap)
+    {
+        const Triangle2 first{{Point2{0.0, 0.0}, Point2{4.0, 0.0}, Point2{0.0, 4.0}}};
+        const Triangle2 second{{Point2{1.0, 1.0}, Point2{5.0, 1.0}, Point2{1.0, 5.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, true);
+    }
+
+    TEST(TrianglesIntersectTest, StarIntersectsWithoutContainingAnyVertex)
+    {
+        const Triangle2 first{{Point2{-2.0, -1.0}, Point2{2.0, -1.0}, Point2{0.0, 2.0}}};
+        const Triangle2 second{{Point2{-2.0, 1.0}, Point2{2.0, 1.0}, Point2{0.0, -2.0}}};
+
+        for (const Point2& vertex : first.vertices2)
+            EXPECT_FALSE(PointInTriangle(vertex, second));
+        for (const Point2& vertex : second.vertices2)
+            EXPECT_FALSE(PointInTriangle(vertex, first));
+        ExpectTriangleIntersectionInAnyOrder(first, second, true);
+    }
+
+    TEST(TrianglesIntersectTest, StrictContainmentCountsAsIntersection)
+    {
+        const Triangle2 outer{{Point2{0.0, 0.0}, Point2{6.0, 0.0}, Point2{0.0, 6.0}}};
+        const Triangle2 inner{{Point2{1.0, 1.0}, Point2{2.0, 1.0}, Point2{1.0, 2.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(outer, inner, true);
+    }
+
+    TEST(TrianglesIntersectTest, CoincidentTrianglesIntersect)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(triangle, triangle, true);
+    }
+
+    TEST(TrianglesIntersectTest, SingleSharedVertexCountsAsIntersection)
+    {
+        const Triangle2 first{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        const Triangle2 second{{Point2{2.0, 0.0}, Point2{4.0, 0.0}, Point2{2.0, -2.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, true);
+    }
+
+    TEST(TrianglesIntersectTest, WholeSharedEdgeCountsAsIntersection)
+    {
+        const Triangle2 first{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        const Triangle2 second{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, -2.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, true);
+    }
+
+    TEST(TrianglesIntersectTest, PartialSharedEdgeCountsAsIntersection)
+    {
+        const Triangle2 first{{Point2{0.0, 0.0}, Point2{4.0, 0.0}, Point2{0.0, 4.0}}};
+        const Triangle2 second{{Point2{1.0, 0.0}, Point2{3.0, 0.0}, Point2{1.0, -2.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, true);
+    }
+
+    TEST(TrianglesIntersectTest, VertexTouchesInteriorOfOtherEdge)
+    {
+        const Triangle2 first{{Point2{0.0, 0.0}, Point2{4.0, 0.0}, Point2{0.0, 4.0}}};
+        const Triangle2 second{{Point2{2.0, 0.0}, Point2{1.0, -2.0}, Point2{3.0, -2.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, true);
+    }
+
+    TEST(TrianglesIntersectTest, TouchingSideExtensionsDoesNotImplyIntersection)
+    {
+        const Triangle2 first{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        const Triangle2 second{{Point2{3.0, 0.0}, Point2{4.0, 0.0}, Point2{3.0, 1.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, false);
+    }
+
+    TEST(TrianglesIntersectTest, HandlesNegativeAndFractionalCoordinates)
+    {
+        const Triangle2 first{{Point2{-1.5, -1.5}, Point2{0.5, -1.5}, Point2{-1.5, 0.5}}};
+        const Triangle2 second{{Point2{-1.0, -1.0}, Point2{1.0, -1.0}, Point2{-1.0, 1.0}}};
+
+        ExpectTriangleIntersectionInAnyOrder(first, second, true);
+    }
+
 }

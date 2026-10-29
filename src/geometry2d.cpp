@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstddef>
 #include "geometry2d.hpp"
 
 
@@ -42,6 +43,42 @@ namespace triangles
         Point2 c = triangle.vertices2[2];
         if ((Orient2D(a, b, point) >= 0 && Orient2D(b, c, point) >= 0 && Orient2D(c, a, point) >= 0) || (Orient2D(a, b, point) <= 0 && Orient2D(b, c, point) <= 0 && Orient2D(c, a, point) <= 0)) 
             return true;
+        return false;
+    }
+
+    bool TrianglesIntersect(const Triangle2& lhs, const Triangle2& rhs)
+    {
+        for (std::size_t i = 0; i < lhs.vertices2.size(); ++i)
+        {
+            const Segment2 first{
+                lhs.vertices2[i],
+                lhs.vertices2[(i + 1) % lhs.vertices2.size()]
+            };
+
+            for (std::size_t j = 0; j < rhs.vertices2.size(); ++j)
+            {
+                const Segment2 second{
+                    rhs.vertices2[j],
+                    rhs.vertices2[(j + 1) % rhs.vertices2.size()]
+                };
+
+                if (SegmentsIntersect(first, second))
+                    return true;
+            }
+        }
+
+        for (const Point2& vertex : lhs.vertices2)
+        {
+            if (PointInTriangle(vertex, rhs))
+                return true;
+        }
+
+        for (const Point2& vertex : rhs.vertices2)
+        {
+            if (PointInTriangle(vertex, lhs))
+                return true;
+        }
+
         return false;
     }
 
