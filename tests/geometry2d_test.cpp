@@ -589,4 +589,100 @@ namespace triangles
         ExpectTriangleIntersectionInAnyOrder(first, second, true);
     }
 
+
+    namespace
+    {
+        void ExpectSegmentTriangleIntersectionInAnyOrder(const Segment2& segment,
+                                                        const Triangle2& triangle,
+                                                        bool expected)
+        {
+            std::array<std::size_t, 3> order{0, 1, 2};
+            do
+            {
+                SCOPED_TRACE(::testing::Message() << "triangle vertex order: "
+                             << order[0] << order[1] << order[2]);
+                const Triangle2 permuted{{triangle.vertices2[order[0]],
+                                          triangle.vertices2[order[1]],
+                                          triangle.vertices2[order[2]]}};
+                const Segment2 reversed{segment.end, segment.start};
+
+                EXPECT_EQ(SegmentIntersectsTriangle(segment, permuted), expected);
+                EXPECT_EQ(SegmentIntersectsTriangle(reversed, permuted), expected);
+            } while (std::next_permutation(order.begin(), order.end()));
+        }
+    }
+
+    TEST(SegmentIntersectsTriangleTest, OneEndpointIsInside)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{0.5, 0.5}, {3.0, 3.0}}, triangle, true);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, BothEndpointsAreInside)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{0.25, 0.25}, {0.5, 0.5}}, triangle, true);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, CrossesTriangleWithBothEndpointsOutside)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{-1.0, 1.0}, {3.0, 1.0}}, triangle, true);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, SeparatedSegmentDoesNotIntersect)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{-1.0, 3.0}, {3.0, 3.0}}, triangle, false);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, TouchesOnlyOneVertexWithEndpointsOutside)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{-1.0, 1.0}, {1.0, -1.0}}, triangle, true);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, EndpointTouchesInteriorOfEdge)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{1.0, -1.0}, {1.0, 0.0}}, triangle, true);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, OverlapsEdgeWithBothEndpointsOutside)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{-1.0, 0.0}, {3.0, 0.0}}, triangle, true);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, SideExtensionDoesNotCountAsIntersection)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{3.0, 0.0}, {4.0, 0.0}}, triangle, false);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, ZeroLengthSegmentInsideTriangleIntersects)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{0.5, 0.5}, {0.5, 0.5}}, triangle, true);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, ZeroLengthSegmentOnBoundaryIntersects)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{0.0, 0.0}, {0.0, 0.0}}, triangle, true);
+        ExpectSegmentTriangleIntersectionInAnyOrder({{1.0, 0.0}, {1.0, 0.0}}, triangle, true);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, ZeroLengthSegmentOutsideTriangleDoesNotIntersect)
+    {
+        const Triangle2 triangle{{Point2{0.0, 0.0}, Point2{2.0, 0.0}, Point2{0.0, 2.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{2.0, 2.0}, {2.0, 2.0}}, triangle, false);
+    }
+
+    TEST(SegmentIntersectsTriangleTest, HandlesNegativeAndFractionalCoordinates)
+    {
+        const Triangle2 triangle{{Point2{-2.0, -2.0}, Point2{0.0, -2.0}, Point2{-2.0, 0.0}}};
+        ExpectSegmentTriangleIntersectionInAnyOrder({{-2.5, -1.0}, {0.5, -1.0}}, triangle, true);
+    }
+
 }

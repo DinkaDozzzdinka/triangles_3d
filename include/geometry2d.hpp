@@ -26,4 +26,5 @@ namespace triangles
     bool SegmentsIntersect(const Segment2& lhs, const Segment2& rhs);
     bool PointInTriangle(const Point2& point, const Triangle2& triangle);
     bool TrianglesIntersect(const Triangle2& lhs, const Triangle2& rhs);
+    bool SegmentIntersectsTriangle(const Segment2& segment, const Triangle2& triangle);
 }

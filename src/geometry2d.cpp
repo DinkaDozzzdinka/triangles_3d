@@ -82,4 +82,22 @@ namespace triangles
         return false;
     }
 
+    bool SegmentIntersectsTriangle(const Segment2& segment, const Triangle2& triangle)
+    {
+        if (PointInTriangle(segment.start, triangle) || PointInTriangle(segment.end, triangle))
+            return true;
+
+        for (std::size_t i = 0; i < triangle.vertices2.size(); ++i)
+        {
+            const Segment2 edge{
+                triangle.vertices2[i],
+                triangle.vertices2[(i + 1) % triangle.vertices2.size()]
+            };
+            if (SegmentsIntersect(segment, edge))
+                return true;
+        }
+
+        return false;
+    }
+
 }
