@@ -6,6 +6,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -652,6 +653,123 @@ namespace triangles
         const Triangle3 first{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
         const Triangle3 second{{Point3{0.0, 0.0, 1e-14}, Point3{2.0, 0.0, 1e-14}, Point3{0.0, 2.0, 1e-14}}};
         Expect3DTriangleIntersectionInAnyOrder(first, second, false);
+    }
+
+
+    TEST(FindIntersectionsBruteForceTest, EmptyInputProducesEmptyMask)
+    {
+        EXPECT_TRUE(FindIntersectionsBruteForce({}).empty());
+    }
+
+    TEST(FindIntersectionsBruteForceTest, SingleTriangleIsNotComparedWithItself)
+    {
+        const Triangle3 triangle{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const std::vector<bool> expected{false};
+
+        EXPECT_EQ(FindIntersectionsBruteForce({triangle}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, MarksBothTrianglesOfIntersectingPair)
+    {
+        const Triangle3 first{{Point3{0.0, 0.0, 0.0}, Point3{4.0, 0.0, 0.0}, Point3{0.0, 4.0, 0.0}}};
+        const Triangle3 second{{Point3{1.0, 1.0, 2.0}, Point3{1.0, 1.0, -2.0}, Point3{3.0, 1.0, 2.0}}};
+        const std::vector<bool> expected{true, true};
+
+        EXPECT_EQ(FindIntersectionsBruteForce({first, second}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, SeparatedPairRemainsUnmarked)
+    {
+        const Triangle3 first{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const Triangle3 second{{Point3{3.0, 3.0, 0.0}, Point3{5.0, 3.0, 0.0}, Point3{3.0, 5.0, 0.0}}};
+        const std::vector<bool> expected{false, false};
+
+        EXPECT_EQ(FindIntersectionsBruteForce({first, second}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, PreservesIsolatedTriangleBeforeIntersectingPair)
+    {
+        const Triangle3 isolated{{Point3{10.0, 10.0, 0.0}, Point3{12.0, 10.0, 0.0}, Point3{10.0, 12.0, 0.0}}};
+        const Triangle3 first{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const Triangle3 second{{Point3{1.0, 0.0, 0.0}, Point3{3.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}}};
+        const std::vector<bool> expected{false, true, true};
+
+        EXPECT_EQ(FindIntersectionsBruteForce({isolated, first, second}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, AllSeparatedTrianglesRemainUnmarked)
+    {
+        const Triangle3 first{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const Triangle3 second{{Point3{0.0, 0.0, 2.0}, Point3{2.0, 0.0, 2.0}, Point3{0.0, 2.0, 2.0}}};
+        const Triangle3 third{{Point3{0.0, 0.0, 4.0}, Point3{2.0, 0.0, 4.0}, Point3{0.0, 2.0, 4.0}}};
+        const std::vector<bool> expected{false, false, false};
+
+        EXPECT_EQ(FindIntersectionsBruteForce({first, second, third}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, ContinuesAfterFirstMatchToMarkLaterTriangles)
+    {
+        const Triangle3 center{{Point3{0.0, 0.0, 0.0}, Point3{10.0, 0.0, 0.0}, Point3{0.0, 10.0, 0.0}}};
+        const Triangle3 first{{Point3{1.0, 1.0, -1.0}, Point3{1.0, 1.0, 1.0}, Point3{2.0, 1.0, 1.0}}};
+        const Triangle3 second{{Point3{1.0, 7.0, -1.0}, Point3{1.0, 7.0, 1.0}, Point3{2.0, 7.0, 1.0}}};
+        const std::vector<bool> expected{true, true, true};
+
+        ASSERT_FALSE(TrianglesIntersect(first, second));
+        EXPECT_EQ(FindIntersectionsBruteForce({center, first, second}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, HandlesSeparateIntersectingGroups)
+    {
+        const Triangle3 a{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const Triangle3 b{{Point3{1.0, 0.0, 0.0}, Point3{3.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}}};
+        const Triangle3 c{{Point3{10.0, 10.0, 0.0}, Point3{12.0, 10.0, 0.0}, Point3{10.0, 12.0, 0.0}}};
+        const Triangle3 d{{Point3{11.0, 10.0, 0.0}, Point3{13.0, 10.0, 0.0}, Point3{11.0, 12.0, 0.0}}};
+        const Triangle3 isolated{{Point3{0.0, 0.0, 5.0}, Point3{2.0, 0.0, 5.0}, Point3{0.0, 2.0, 5.0}}};
+        const std::vector<bool> expected{true, true, true, true, false};
+
+        EXPECT_EQ(FindIntersectionsBruteForce({a, b, c, d, isolated}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, DuplicateTrianglesAtDifferentIndicesIntersect)
+    {
+        const Triangle3 triangle{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const std::vector<bool> expected{true, true, true};
+
+        EXPECT_EQ(FindIntersectionsBruteForce({triangle, triangle, triangle}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, TouchingTrianglesAreMarked)
+    {
+        const Triangle3 first{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const Triangle3 second{{Point3{0.0, 0.0, 0.0}, Point3{-1.0, 0.0, 1.0}, Point3{0.0, -1.0, 1.0}}};
+        const std::vector<bool> expected{true, true};
+
+        EXPECT_EQ(FindIntersectionsBruteForce({first, second}), expected);
+    }
+
+    TEST(FindIntersectionsBruteForceTest, PermutingInputPreservesMaskAssociation)
+    {
+        const std::array<Triangle3, 4> triangles{{
+            Triangle3{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}},
+            Triangle3{{Point3{1.0, 0.0, 0.0}, Point3{3.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}}},
+            Triangle3{{Point3{10.0, 10.0, 0.0}, Point3{12.0, 10.0, 0.0}, Point3{10.0, 12.0, 0.0}}},
+            Triangle3{{Point3{0.0, 0.0, 5.0}, Point3{2.0, 0.0, 5.0}, Point3{0.0, 2.0, 5.0}}}
+        }};
+        const std::array<bool, 4> originalMask{true, true, false, false};
+        std::array<std::size_t, 4> order{0, 1, 2, 3};
+        do
+        {
+            SCOPED_TRACE(::testing::Message() << "input order: "
+                         << order[0] << order[1] << order[2] << order[3]);
+            std::vector<Triangle3> permuted;
+            std::vector<bool> expected;
+            for (const std::size_t index : order)
+            {
+                permuted.push_back(triangles[index]);
+                expected.push_back(originalMask[index]);
+            }
+            EXPECT_EQ(FindIntersectionsBruteForce(permuted), expected);
+        } while (std::next_permutation(order.begin(), order.end()));
     }
 
 }

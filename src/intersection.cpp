@@ -148,4 +148,24 @@ namespace triangles
         return SegmentIntersectsTriangle(projected_section, projected_triangle);
     }
 
+
+    std::vector<bool> FindIntersectionsBruteForce(const std::vector<Triangle3>& triangles)
+    {
+        std::vector<bool> flags(triangles.size(), false);
+
+        for (std::size_t i = 0; i < triangles.size(); ++i)
+        {
+            for (std::size_t j = i + 1; j < triangles.size(); ++j)
+            {
+                if (TrianglesIntersect(triangles[i], triangles[j]))
+                {
+                    flags[i] = true;
+                    flags[j] = true;
+                }
+            }
+        }
+
+        return flags;
+    }
+
 }
