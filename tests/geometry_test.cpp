@@ -722,3 +722,155 @@ TEST(GeometryTests, BoundsHandlesExtremeFiniteCoordinates)
     EXPECT_DOUBLE_EQ(bounds.maximum.cord_y, maximum);
     EXPECT_DOUBLE_EQ(bounds.maximum.cord_z, maximum);
 }
+
+TEST (SignedDistanceToPlaneTest, SimpleTest)
+{
+    const triangles:: Point3 point1{1.0, 1.0, 3.0};
+    const triangles:: Point3 point2{1.0, 1.0, -2.0};
+    const triangles:: Point3 point3{10.0, 10.0, 0.0};
+    const triangles:: Triangle3 triangle{{
+        triangles::Point3{0.0,0.0,0.0}, 
+        triangles::Point3{2.0,0.0,0.0}, 
+        triangles::Point3{0.0,2.0,0.0}
+    }};
+
+    EXPECT_DOUBLE_EQ(triangles:: SignedDistanceToPlane (point1, triangle), 3.0);
+    EXPECT_DOUBLE_EQ(triangles:: SignedDistanceToPlane (point2, triangle), -2.0);
+    EXPECT_DOUBLE_EQ(triangles:: SignedDistanceToPlane (point3, triangle), 0.0);
+
+}
+
+TEST(SignedDistanceToPlaneTest, HandlesPlaneAwayFromOrigin)
+{
+    const triangles::Triangle3 triangle{{
+        triangles::Point3{1.0, 2.0, 5.0},
+        triangles::Point3{3.0, 2.0, 5.0},
+        triangles::Point3{1.0, 5.0, 5.0}
+    }};
+
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane({10.0, -8.0, 8.0}, triangle), 3.0);
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane({-10.0, 8.0, 3.0}, triangle), -2.0);
+}
+
+TEST(SignedDistanceToPlaneTest, HandlesVerticalPlane)
+{
+    const triangles::Triangle3 triangle{{
+        triangles::Point3{4.0, 1.0, 2.0},
+        triangles::Point3{4.0, 3.0, 2.0},
+        triangles::Point3{4.0, 1.0, 5.0}
+    }};
+
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane({7.0, 0.0, 0.0}, triangle), 3.0);
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane({2.0, 0.0, 0.0}, triangle), -2.0);
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane({4.0, -8.0, 12.0}, triangle), 0.0);
+}
+
+TEST(SignedDistanceToPlaneTest, HandlesObliquePlane)
+{
+    const triangles::Triangle3 triangle{{
+        triangles::Point3{1.0, 0.0, 0.0},
+        triangles::Point3{0.0, 1.0, 0.0},
+        triangles::Point3{0.0, 0.0, 1.0}
+    }};
+
+    EXPECT_NEAR(triangles::SignedDistanceToPlane({2.0, 2.0, 2.0}, triangle),
+                5.0 / std::sqrt(3.0), 1e-12);
+    EXPECT_NEAR(triangles::SignedDistanceToPlane({0.0, 0.0, 0.0}, triangle),
+                -1.0 / std::sqrt(3.0), 1e-12);
+}
+
+TEST(SignedDistanceToPlaneTest, ReturnsZeroOnVerticesAndPlaneOutsideTriangle)
+{
+    const triangles::Triangle3 triangle{{
+        triangles::Point3{1.0, 2.0, 3.0},
+        triangles::Point3{3.0, 2.0, 3.0},
+        triangles::Point3{1.0, 4.0, 5.0}
+    }};
+
+    for (const triangles::Point3& vertex : triangle.vertices)
+        EXPECT_NEAR(triangles::SignedDistanceToPlane(vertex, triangle), 0.0, 1e-12);
+    EXPECT_NEAR(triangles::SignedDistanceToPlane({11.0, 12.0, 13.0}, triangle), 0.0, 1e-12);
+}
+
+TEST(SignedDistanceToPlaneTest, ReversingWindingReversesSign)
+{
+    const triangles::Point3 a{0.0, 0.0, 0.0};
+    const triangles::Point3 b{2.0, 0.0, 0.0};
+    const triangles::Point3 c{0.0, 2.0, 0.0};
+    const triangles::Triangle3 original{{a, b, c}};
+    const triangles::Triangle3 reversed{{a, c, b}};
+    const triangles::Point3 point{1.0, 1.0, 3.0};
+
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane(point, original), 3.0);
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane(point, reversed), -3.0);
+}
+
+TEST(SignedDistanceToPlaneTest, CyclicPermutationPreservesSignedDistance)
+{
+    const triangles::Point3 a{1.0, 0.0, 0.0};
+    const triangles::Point3 b{0.0, 1.0, 0.0};
+    const triangles::Point3 c{0.0, 0.0, 1.0};
+    const triangles::Triangle3 orders[]{{{a, b, c}}, {{b, c, a}}, {{c, a, b}}};
+
+    for (const triangles::Triangle3& triangle : orders)
+        EXPECT_NEAR(triangles::SignedDistanceToPlane({2.0, 2.0, 2.0}, triangle),
+                    5.0 / std::sqrt(3.0), 1e-12);
+}
+
+TEST(SignedDistanceToPlaneTest, TriangleSizeDoesNotScaleDistance)
+{
+    const triangles::Triangle3 large{{
+        triangles::Point3{0.0, 0.0, 0.0},
+        triangles::Point3{4.0, 0.0, 0.0},
+        triangles::Point3{0.0, 6.0, 0.0}
+    }};
+    const triangles::Triangle3 small{{
+        triangles::Point3{0.0, 0.0, 0.0},
+        triangles::Point3{0.25, 0.0, 0.0},
+        triangles::Point3{0.0, 0.5, 0.0}
+    }};
+
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane({1.0, 1.0, 4.0}, large), 4.0);
+    EXPECT_DOUBLE_EQ(triangles::SignedDistanceToPlane({1.0, 1.0, 4.0}, small), 4.0);
+}
+
+TEST(SignedDistanceToPlaneTest, TranslatingPointAndTrianglePreservesDistance)
+{
+    const triangles::Triangle3 original{{
+        triangles::Point3{0.0, 0.0, 0.0},
+        triangles::Point3{2.0, 0.0, 0.0},
+        triangles::Point3{0.0, 2.0, 2.0}
+    }};
+    const triangles::Triangle3 translated{{
+        triangles::Point3{8.0, -4.0, 16.0},
+        triangles::Point3{10.0, -4.0, 16.0},
+        triangles::Point3{8.0, -2.0, 18.0}
+    }};
+
+    EXPECT_NEAR(triangles::SignedDistanceToPlane({1.0, 0.0, 2.0}, original),
+                std::sqrt(2.0), 1e-12);
+    EXPECT_NEAR(triangles::SignedDistanceToPlane({9.0, -4.0, 18.0}, translated),
+                std::sqrt(2.0), 1e-12);
+}
+
+TEST(SignedDistanceToPlaneTest, RejectsCollinearTriangle)
+{
+    const triangles::Triangle3 triangle{{
+        triangles::Point3{0.0, 0.0, 0.0},
+        triangles::Point3{1.0, 0.0, 0.0},
+        triangles::Point3{2.0, 0.0, 0.0}
+    }};
+
+    EXPECT_THROW(triangles::SignedDistanceToPlane({0.0, 1.0, 0.0}, triangle), std::domain_error);
+}
+
+TEST(SignedDistanceToPlaneTest, RejectsTriangleWithRepeatedVertex)
+{
+    const triangles::Triangle3 triangle{{
+        triangles::Point3{0.0, 0.0, 0.0},
+        triangles::Point3{0.0, 0.0, 0.0},
+        triangles::Point3{0.0, 2.0, 0.0}
+    }};
+
+    EXPECT_THROW(triangles::SignedDistanceToPlane({0.0, 0.0, 1.0}, triangle), std::domain_error);
+}

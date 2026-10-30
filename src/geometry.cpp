@@ -100,4 +100,10 @@ namespace triangles
         return {point_min, point_max};
     }
 
+    double SignedDistanceToPlane(const Point3& point, const Triangle3& triangle)
+    {
+        Vec3 normal = UnitNormal(triangle);
+        return Dot(normal, point - triangle.vertices[0]);
+    }
+
 }

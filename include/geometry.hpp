@@ -36,6 +36,7 @@ namespace triangles
         Point3 maximum{};
     };
 
+    
     Vec3 operator-(const Point3& lhs, const Point3& rhs);
     Vec3 operator+(const Vec3& lhs, const Vec3& rhs);
     Point3 operator+(const Point3& point, const Vec3& displacement);
@@ -47,5 +48,6 @@ namespace triangles
     Vec3 UnitNormal(const Triangle3& triangle);
     double Area(const Triangle3& triangle);
     Aabb3 Bounds(const Triangle3& triangle);
+    double SignedDistanceToPlane(const Point3& point,const Triangle3& triangle);
 
 }
