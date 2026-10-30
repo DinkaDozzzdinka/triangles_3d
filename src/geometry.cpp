@@ -106,4 +106,14 @@ namespace triangles
         return Dot(normal, point - triangle.vertices[0]);
     }
 
+    Axis DominantAxis(const Vec3& normal)
+    {
+        auto max_component = std::max({std::abs(normal.cord_x), std::abs(normal.cord_y), std::abs(normal.cord_z)});
+        if (max_component == std:: abs(normal.cord_x))
+            return Axis::X;
+        else if (max_component == std:: abs(normal.cord_y))
+                return Axis::Y;
+        else return Axis::Z;
+    }
+
 }

@@ -36,7 +36,9 @@ target_link_libraries(window_demo PRIVATE glad glfw OpenGL::GL)
 
 add_library(triangle_geometry STATIC 
     src/geometry.cpp
-    src/geometry2d.cpp)
+    src/geometry2d.cpp
+    src/projection.cpp
+    src/intersection.cpp)
 
 target_include_directories(triangle_geometry PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -67,7 +69,8 @@ if (BUILD_TESTING)
     
     add_executable(geometry_tests 
         tests/geometry_test.cpp
-        tests/geometry2d_test.cpp)
+        tests/geometry2d_test.cpp
+        tests/intersection_test.cpp)
     target_link_libraries(geometry_tests PRIVATE triangle_geometry GTest::gtest_main)
     gtest_discover_tests(geometry_tests)
     endif()

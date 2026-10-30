@@ -874,3 +874,78 @@ TEST(SignedDistanceToPlaneTest, RejectsTriangleWithRepeatedVertex)
 
     EXPECT_THROW(triangles::SignedDistanceToPlane({0.0, 0.0, 1.0}, triangle), std::domain_error);
 }
+
+TEST(DominantAxisTest, SelectsXWhenItsMagnitudeIsLargest)
+{
+    EXPECT_EQ(triangles::DominantAxis({3.0, 1.0, 2.0}), triangles::Axis::X);
+}
+
+TEST(DominantAxisTest, SelectsNegativeYWhenItsMagnitudeIsLargest)
+{
+    EXPECT_EQ(triangles::DominantAxis({0.01, -0.9, 0.2}), triangles::Axis::Y);
+}
+
+TEST(DominantAxisTest, SelectsZWhenItsMagnitudeIsLargest)
+{
+    EXPECT_EQ(triangles::DominantAxis({1.0, 2.0, 3.0}), triangles::Axis::Z);
+}
+
+TEST(DominantAxisTest, SelectsNegativeXWhenItsMagnitudeIsLargest)
+{
+    EXPECT_EQ(triangles::DominantAxis({-3.0, 1.0, 2.0}), triangles::Axis::X);
+}
+
+TEST(DominantAxisTest, SelectsNegativeZWhenItsMagnitudeIsLargest)
+{
+    EXPECT_EQ(triangles::DominantAxis({1.0, 2.0, -3.0}), triangles::Axis::Z);
+}
+
+TEST(DominantAxisTest, HandlesAxisAlignedNormalsInBothDirections)
+{
+    EXPECT_EQ(triangles::DominantAxis({1.0, 0.0, 0.0}), triangles::Axis::X);
+    EXPECT_EQ(triangles::DominantAxis({-1.0, 0.0, 0.0}), triangles::Axis::X);
+    EXPECT_EQ(triangles::DominantAxis({0.0, 1.0, 0.0}), triangles::Axis::Y);
+    EXPECT_EQ(triangles::DominantAxis({0.0, -1.0, 0.0}), triangles::Axis::Y);
+    EXPECT_EQ(triangles::DominantAxis({0.0, 0.0, 1.0}), triangles::Axis::Z);
+    EXPECT_EQ(triangles::DominantAxis({0.0, 0.0, -1.0}), triangles::Axis::Z);
+}
+
+TEST(DominantAxisTest, PrefersXWhenXAndYTieForMaximumMagnitude)
+{
+    EXPECT_EQ(triangles::DominantAxis({2.0, -2.0, 1.0}), triangles::Axis::X);
+    EXPECT_EQ(triangles::DominantAxis({-2.0, 2.0, 1.0}), triangles::Axis::X);
+}
+
+TEST(DominantAxisTest, PrefersXWhenXAndZTieForMaximumMagnitude)
+{
+    EXPECT_EQ(triangles::DominantAxis({-3.0, 1.0, 3.0}), triangles::Axis::X);
+}
+
+TEST(DominantAxisTest, PrefersYWhenYAndZTieForMaximumMagnitude)
+{
+    EXPECT_EQ(triangles::DominantAxis({1.0, -3.0, 3.0}), triangles::Axis::Y);
+}
+
+TEST(DominantAxisTest, PrefersXWhenAllMagnitudesTie)
+{
+    EXPECT_EQ(triangles::DominantAxis({-2.0, 2.0, -2.0}), triangles::Axis::X);
+}
+
+TEST(DominantAxisTest, HandlesFractionalComponents)
+{
+    EXPECT_EQ(triangles::DominantAxis({0.125, -0.5, 0.25}), triangles::Axis::Y);
+}
+
+TEST(DominantAxisTest, HandlesExtremeFiniteComponents)
+{
+    const double maximum = std::numeric_limits<double>::max();
+
+    EXPECT_EQ(triangles::DominantAxis({-maximum, maximum / 2.0, 1.0}), triangles::Axis::X);
+    EXPECT_EQ(triangles::DominantAxis({1.0, -maximum, maximum / 2.0}), triangles::Axis::Y);
+    EXPECT_EQ(triangles::DominantAxis({1.0, maximum / 2.0, -maximum}), triangles::Axis::Z);
+}
+
+TEST(DominantAxisTest, HandlesTinyNonzeroComponents)
+{
+    EXPECT_EQ(triangles::DominantAxis({1e-200, -3e-200, 2e-200}), triangles::Axis::Y);
+}
