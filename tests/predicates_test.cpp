@@ -222,4 +222,192 @@ namespace triangles
         EXPECT_FALSE(SegmentIntersectsTriangle(segment, triangle));
         EXPECT_FALSE(SegmentIntersectsTriangle({segment.end, segment.start}, triangle));
     }
+
+    namespace
+    {
+        void ExpectDifficult3DOrientationInEveryOrder(double n)
+        {
+            SCOPED_TRACE(::testing::Message() << "n=" << n);
+            const Point3 a{0.0, 0.0, 0.0};
+            const Point3 b{n + 1.0, n, 0.0};
+            const Point3 c{n, n - 1.0, 0.0};
+            const Point3 point{0.0, 0.0, 1.0};
+
+            EXPECT_EQ(Orient3DSign(a, b, c, point), Sign::Negative);
+            EXPECT_EQ(Orient3DSign(b, c, a, point), Sign::Negative);
+            EXPECT_EQ(Orient3DSign(c, a, b, point), Sign::Negative);
+            EXPECT_EQ(Orient3DSign(b, a, c, point), Sign::Positive);
+            EXPECT_EQ(Orient3DSign(a, c, b, point), Sign::Positive);
+            EXPECT_EQ(Orient3DSign(c, b, a, point), Sign::Positive);
+        }
+    }
+
+    TEST(Orient3DSignTest, HorizontalPlaneMatchesNormalDirection)
+    {
+        const Point3 a{0.0, 0.0, 0.0};
+        const Point3 b{2.0, 0.0, 0.0};
+        const Point3 c{0.0, 2.0, 0.0};
+        EXPECT_EQ(Orient3DSign(a, b, c, {1.0, 1.0, 3.0}), Sign::Positive);
+        EXPECT_EQ(Orient3DSign(a, b, c, {1.0, 1.0, -2.0}), Sign::Negative);
+        EXPECT_EQ(Orient3DSign(a, b, c, {10.0, 10.0, 0.0}), Sign::Zero);
+    }
+
+    TEST(Orient3DSignTest, HandlesVerticalPlaneWithConstantX)
+    {
+        const Point3 a{5.0, 0.0, 0.0};
+        const Point3 b{5.0, 2.0, 0.0};
+        const Point3 c{5.0, 0.0, 2.0};
+        EXPECT_EQ(Orient3DSign(a, b, c, {6.0, 0.0, 0.0}), Sign::Positive);
+        EXPECT_EQ(Orient3DSign(a, b, c, {4.0, 0.0, 0.0}), Sign::Negative);
+        EXPECT_EQ(Orient3DSign(a, b, c, {5.0, 10.0, 10.0}), Sign::Zero);
+    }
+
+    TEST(Orient3DSignTest, HandlesVerticalPlaneWithConstantY)
+    {
+        const Point3 a{0.0, -3.0, 0.0};
+        const Point3 b{0.0, -3.0, 2.0};
+        const Point3 c{2.0, -3.0, 0.0};
+        EXPECT_EQ(Orient3DSign(a, b, c, {0.0, -2.0, 0.0}), Sign::Positive);
+        EXPECT_EQ(Orient3DSign(a, b, c, {0.0, -4.0, 0.0}), Sign::Negative);
+        EXPECT_EQ(Orient3DSign(a, b, c, {10.0, -3.0, 10.0}), Sign::Zero);
+    }
+
+    TEST(Orient3DSignTest, HandlesObliquePlaneAndExactCoplanarity)
+    {
+        const Point3 a{1.0, 0.0, 0.0};
+        const Point3 b{0.0, 1.0, 0.0};
+        const Point3 c{0.0, 0.0, 1.0};
+        EXPECT_EQ(Orient3DSign(a, b, c, {2.0, 2.0, 2.0}), Sign::Positive);
+        EXPECT_EQ(Orient3DSign(a, b, c, {0.0, 0.0, 0.0}), Sign::Negative);
+        EXPECT_EQ(Orient3DSign(a, b, c, {2.0, -1.0, 0.0}), Sign::Zero);
+    }
+
+    TEST(Orient3DSignTest, WindingAndCyclicPermutationHaveExpectedSigns)
+    {
+        const Point3 a{0.0, 0.0, 0.0};
+        const Point3 b{2.0, 0.0, 0.0};
+        const Point3 c{0.0, 2.0, 0.0};
+        const Point3 point{1.0, 1.0, 3.0};
+        EXPECT_EQ(Orient3DSign(a, b, c, point), Sign::Positive);
+        EXPECT_EQ(Orient3DSign(b, c, a, point), Sign::Positive);
+        EXPECT_EQ(Orient3DSign(c, a, b, point), Sign::Positive);
+        EXPECT_EQ(Orient3DSign(b, a, c, point), Sign::Negative);
+        EXPECT_EQ(Orient3DSign(a, c, b, point), Sign::Negative);
+        EXPECT_EQ(Orient3DSign(c, b, a, point), Sign::Negative);
+    }
+
+    TEST(Orient3DSignTest, RepeatedAndCollinearPointsHaveZeroDeterminant)
+    {
+        const Point3 a{0.0, 0.0, 0.0};
+        const Point3 b{1.0, 0.0, 0.0};
+        const Point3 c{0.0, 1.0, 0.0};
+        const Point3 point{0.0, 0.0, 1.0};
+        EXPECT_EQ(Orient3DSign(a, a, c, point), Sign::Zero);
+        EXPECT_EQ(Orient3DSign(a, b, a, point), Sign::Zero);
+        EXPECT_EQ(Orient3DSign(a, b, c, a), Sign::Zero);
+        EXPECT_EQ(Orient3DSign(a, b, {2.0, 0.0, 0.0}, point), Sign::Zero);
+        EXPECT_EQ(Orient3DSign(a, a, a, a), Sign::Zero);
+    }
+
+    TEST(Orient3DSignTest, HandlesCancellationAtTwoToThe27InEveryOrder)
+    {
+        ExpectDifficult3DOrientationInEveryOrder(134217728.0);
+    }
+
+    TEST(Orient3DSignTest, HandlesCancellationBeyondLongDoublePrecisionInEveryOrder)
+    {
+        ExpectDifficult3DOrientationInEveryOrder(1099511627776.0);
+    }
+
+    TEST(Orient3DSignTest, HandlesCancellationAtTwoToThe52InEveryOrder)
+    {
+        ExpectDifficult3DOrientationInEveryOrder(4503599627370496.0);
+    }
+
+    TEST(Orient3DSignTest, TranslationPreservesSign)
+    {
+        EXPECT_EQ(Orient3DSign({0.0, 0.0, 0.0}, {2.0, 0.0, 0.0},
+                              {0.0, 2.0, 0.0}, {0.0, 0.0, 3.0}), Sign::Positive);
+        EXPECT_EQ(Orient3DSign({8.0, -16.0, 32.0}, {10.0, -16.0, 32.0},
+                              {8.0, -14.0, 32.0}, {8.0, -16.0, 35.0}), Sign::Positive);
+    }
+
+    TEST(Orient3DSignTest, ExactPowerOfTwoRescalingPreservesSign)
+    {
+        for (const int exponent : {-900, -500, 0, 500, 900})
+        {
+            SCOPED_TRACE(exponent);
+            const double scale = std::scalbn(1.0, exponent);
+            EXPECT_EQ(Orient3DSign({0.0, 0.0, 0.0}, {scale, 0.0, 0.0},
+                                  {0.0, scale, 0.0}, {0.0, 0.0, scale}), Sign::Positive);
+        }
+    }
+
+    TEST(Orient3DSignTest, RescalesExtremeFiniteCoordinatesBeforeArithmetic)
+    {
+        const double maximum = std::numeric_limits<double>::max();
+        EXPECT_EQ(Orient3DSign({-maximum, 0.0, 0.0}, {maximum, 0.0, 0.0},
+                              {0.0, maximum, 0.0}, {0.0, 0.0, maximum}), Sign::Positive);
+    }
+
+    TEST(Orient3DSignTest, RescalesSubnormalCoordinatesBeforeArithmetic)
+    {
+        const double tiny = std::numeric_limits<double>::denorm_min();
+        EXPECT_EQ(Orient3DSign({0.0, 0.0, 0.0}, {tiny, 0.0, 0.0},
+                              {0.0, tiny, 0.0}, {0.0, 0.0, tiny}), Sign::Positive);
+    }
+
+    TEST(Orient3DSignTest, ChecksSupportedExponentSpreadBoundary)
+    {
+        const Point3 a{0.0, 0.0, 0.0};
+        const Point3 b{1.0, 0.0, 0.0};
+        const Point3 c{0.0, 1.0, 0.0};
+        EXPECT_EQ(Orient3DSign(a, b, c, {0.0, 0.0, std::scalbn(1.0, -256)}), Sign::Positive);
+        EXPECT_THROW(Orient3DSign(a, b, c, {0.0, 0.0, std::scalbn(1.0, -257)}), std::range_error);
+    }
+
+    TEST(Orient3DSignTest, RejectsUnsupportedExponentSpread)
+    {
+        const double maximum = std::numeric_limits<double>::max();
+        const double tiny = std::numeric_limits<double>::denorm_min();
+        EXPECT_THROW(Orient3DSign({0.0, 0.0, 0.0}, {maximum, 0.0, 0.0},
+                                 {0.0, maximum, 0.0}, {0.0, 0.0, tiny}), std::range_error);
+    }
+
+    TEST(Orient3DSignTest, RejectsNaNInEveryPointAndCoordinate)
+    {
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        const Point3 invalidPoints[]{{nan, 0.0, 0.0}, {0.0, nan, 0.0}, {0.0, 0.0, nan}};
+        const Point3 a{0.0, 0.0, 0.0};
+        const Point3 b{1.0, 0.0, 0.0};
+        const Point3 c{0.0, 1.0, 0.0};
+        const Point3 point{0.0, 0.0, 1.0};
+        for (const Point3& invalid : invalidPoints)
+        {
+            EXPECT_THROW(Orient3DSign(invalid, b, c, point), std::invalid_argument);
+            EXPECT_THROW(Orient3DSign(a, invalid, c, point), std::invalid_argument);
+            EXPECT_THROW(Orient3DSign(a, b, invalid, point), std::invalid_argument);
+            EXPECT_THROW(Orient3DSign(a, b, c, invalid), std::invalid_argument);
+        }
+    }
+
+    TEST(Orient3DSignTest, RejectsInfinityInEveryPointAndCoordinate)
+    {
+        const double inf = std::numeric_limits<double>::infinity();
+        const Point3 invalidPoints[]{{inf, 0.0, 0.0}, {-inf, 0.0, 0.0},
+                                     {0.0, inf, 0.0}, {0.0, -inf, 0.0},
+                                     {0.0, 0.0, inf}, {0.0, 0.0, -inf}};
+        const Point3 a{0.0, 0.0, 0.0};
+        const Point3 b{1.0, 0.0, 0.0};
+        const Point3 c{0.0, 1.0, 0.0};
+        const Point3 point{0.0, 0.0, 1.0};
+        for (const Point3& invalid : invalidPoints)
+        {
+            EXPECT_THROW(Orient3DSign(invalid, b, c, point), std::invalid_argument);
+            EXPECT_THROW(Orient3DSign(a, invalid, c, point), std::invalid_argument);
+            EXPECT_THROW(Orient3DSign(a, b, invalid, point), std::invalid_argument);
+            EXPECT_THROW(Orient3DSign(a, b, c, invalid), std::invalid_argument);
+        }
+    }
+
 }

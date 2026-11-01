@@ -949,3 +949,445 @@ TEST(DominantAxisTest, HandlesTinyNonzeroComponents)
 {
     EXPECT_EQ(triangles::DominantAxis({1e-200, -3e-200, 2e-200}), triangles::Axis::Y);
 }
+
+namespace
+{
+    void ExpectTriangleKindInEveryOrder(const triangles::Triangle3& triangle,
+                                       triangles::TriangleKind expected)
+    {
+        std::array<std::size_t, 3> order{0, 1, 2};
+        do
+        {
+            SCOPED_TRACE(::testing::Message() << "vertex order: "
+                         << order[0] << order[1] << order[2]);
+            const triangles::Triangle3 permuted{{triangle.vertices[order[0]],
+                                                 triangle.vertices[order[1]],
+                                                 triangle.vertices[order[2]]}};
+            EXPECT_EQ(triangles::ClassifyTriangle(permuted), expected);
+        } while (std::next_permutation(order.begin(), order.end()));
+    }
+}
+
+TEST(ClassifyTriangleTest, CoincidentVerticesProducePoint)
+{
+    const triangles::Point3 point{-2.0, 3.0, 4.0};
+    ExpectTriangleKindInEveryOrder({{point, point, point}}, triangles::TriangleKind::Point);
+}
+
+TEST(ClassifyTriangleTest, SignedZerosDenoteSamePoint)
+{
+    const triangles::Triangle3 triangle{{triangles::Point3{0.0, -0.0, 0.0},
+                                         triangles::Point3{-0.0, 0.0, -0.0},
+                                         triangles::Point3{0.0, 0.0, 0.0}}};
+    ExpectTriangleKindInEveryOrder(triangle, triangles::TriangleKind::Point);
+}
+
+TEST(ClassifyTriangleTest, RepeatedVertexAndDistinctVertexProduceSegment)
+{
+    const triangles::Point3 a{1.0, -2.0, 3.0};
+    const triangles::Point3 b{-4.0, 5.0, 6.0};
+    ExpectTriangleKindInEveryOrder({{a, a, b}}, triangles::TriangleKind::Segment);
+}
+
+TEST(ClassifyTriangleTest, DistinctCollinearVerticesProduceSegment)
+{
+    const triangles::Triangle3 triangle{{triangles::Point3{-4.0, 2.0, 9.0},
+                                         triangles::Point3{0.0, 4.0, 3.0},
+                                         triangles::Point3{6.0, 7.0, -6.0}}};
+    ExpectTriangleKindInEveryOrder(triangle, triangles::TriangleKind::Segment);
+}
+
+TEST(ClassifyTriangleTest, HandlesLinesParallelToEveryCoordinateAxis)
+{
+    triangles::Triangle3 triangle{{triangles::Point3{-2.0, 3.0, 4.0},
+                                    triangles::Point3{0.0, 3.0, 4.0},
+                                    triangles::Point3{5.0, 3.0, 4.0}}};
+    for (int rotation = 0; rotation < 3; ++rotation)
+    {
+        SCOPED_TRACE(rotation);
+        ExpectTriangleKindInEveryOrder(triangle, triangles::TriangleKind::Segment);
+        for (auto& point : triangle.vertices)
+            point = {point.cord_y, point.cord_z, point.cord_x};
+    }
+}
+
+TEST(ClassifyTriangleTest, HandlesTrianglesInEveryCoordinatePlane)
+{
+    triangles::Triangle3 triangle{{triangles::Point3{0.0, 0.0, 0.0},
+                                    triangles::Point3{2.0, 0.0, 0.0},
+                                    triangles::Point3{0.0, 3.0, 0.0}}};
+    for (int rotation = 0; rotation < 3; ++rotation)
+    {
+        SCOPED_TRACE(rotation);
+        ExpectTriangleKindInEveryOrder(triangle, triangles::TriangleKind::Triangle);
+        for (auto& point : triangle.vertices)
+            point = {point.cord_y, point.cord_z, point.cord_x};
+    }
+}
+
+TEST(ClassifyTriangleTest, HandlesObliqueTriangleAwayFromOrigin)
+{
+    const triangles::Triangle3 triangle{{triangles::Point3{5.0, -2.0, 7.0},
+                                         triangles::Point3{6.0, -1.0, 7.0},
+                                         triangles::Point3{5.0, -1.0, 8.0}}};
+    ExpectTriangleKindInEveryOrder(triangle, triangles::TriangleKind::Triangle);
+}
+
+TEST(ClassifyTriangleTest, PreservesThinTriangleBeyondOrdinaryDeterminantPrecision)
+{
+    for (const int exponent : {27, 40, 52})
+    {
+        const double n = std::scalbn(1.0, exponent);
+        triangles::Triangle3 triangle{{triangles::Point3{0.0, 0.0, 0.0},
+                                        triangles::Point3{n + 1.0, n, 0.0},
+                                        triangles::Point3{n, n - 1.0, 0.0}}};
+        for (int rotation = 0; rotation < 3; ++rotation)
+        {
+            SCOPED_TRACE(::testing::Message() << "exponent: " << exponent
+                         << ", rotation: " << rotation);
+            ExpectTriangleKindInEveryOrder(triangle, triangles::TriangleKind::Triangle);
+            for (auto& point : triangle.vertices)
+                point = {point.cord_y, point.cord_z, point.cord_x};
+        }
+    }
+}
+
+TEST(ClassifyTriangleTest, NearbyDistinctVerticesAreNotMergedByEpsilon)
+{
+    const double tiny = std::scalbn(1.0, -100);
+    const triangles::Triangle3 triangle{{triangles::Point3{0.0, 0.0, 0.0},
+                                         triangles::Point3{tiny, 0.0, 0.0},
+                                         triangles::Point3{0.0, tiny, 0.0}}};
+    ExpectTriangleKindInEveryOrder(triangle, triangles::TriangleKind::Triangle);
+    ExpectTriangleKindInEveryOrder({{triangle.vertices[0], triangle.vertices[0], triangle.vertices[1]}},
+                                  triangles::TriangleKind::Segment);
+}
+
+TEST(ClassifyTriangleTest, HandlesUniformlyTinyAndHugeCoordinates)
+{
+    for (const int exponent : {-900, 900})
+    {
+        SCOPED_TRACE(exponent);
+        const double scale = std::scalbn(1.0, exponent);
+        const triangles::Point3 a{0.0, 0.0, 0.0};
+        const triangles::Point3 b{scale, 2.0 * scale, 3.0 * scale};
+        const triangles::Point3 c{2.0 * scale, 4.0 * scale, 6.0 * scale};
+        ExpectTriangleKindInEveryOrder({{a, b, c}}, triangles::TriangleKind::Segment);
+        ExpectTriangleKindInEveryOrder({{a, b, {2.0 * scale, 4.0 * scale, 7.0 * scale}}},
+                                      triangles::TriangleKind::Triangle);
+    }
+}
+
+TEST(ClassifyTriangleTest, RejectsNonFiniteCoordinatesInEveryVertexAndComponent)
+{
+    const triangles::Triangle3 original{{triangles::Point3{0.0, 0.0, 0.0},
+                                         triangles::Point3{1.0, 0.0, 0.0},
+                                         triangles::Point3{0.0, 1.0, 0.0}}};
+    for (const double value : {std::numeric_limits<double>::quiet_NaN(),
+                              std::numeric_limits<double>::infinity(),
+                              -std::numeric_limits<double>::infinity()})
+    {
+        for (std::size_t vertex = 0; vertex < 3; ++vertex)
+        {
+            for (std::size_t component = 0; component < 3; ++component)
+            {
+                auto triangle = original;
+                auto& point = triangle.vertices[vertex];
+                const std::array<double*, 3> coordinates{&point.cord_x, &point.cord_y, &point.cord_z};
+                *coordinates[component] = value;
+                EXPECT_THROW(triangles::ClassifyTriangle(triangle), std::invalid_argument);
+            }
+        }
+        const triangles::Point3 invalid{value, value, value};
+        const triangles::Triangle3 coincident{{invalid, invalid, invalid}};
+        EXPECT_THROW(triangles::ClassifyTriangle(coincident), std::invalid_argument);
+    }
+}
+
+TEST(ClassifyTriangleTest, SupportsExponentSpreadBoundary)
+{
+    const triangles::Triangle3 triangle{{triangles::Point3{0.0, 0.0, 0.0},
+                                         triangles::Point3{1.0, 0.0, 0.0},
+                                         triangles::Point3{0.0, std::scalbn(1.0, -256), 0.0}}};
+    ExpectTriangleKindInEveryOrder(triangle, triangles::TriangleKind::Triangle);
+}
+
+TEST(ClassifyTriangleTest, RejectsUnsupportedExponentSpread)
+{
+    const triangles::Triangle3 triangle{{triangles::Point3{0.0, 0.0, 0.0},
+                                         triangles::Point3{1.0, 0.0, 0.0},
+                                         triangles::Point3{0.0, std::scalbn(1.0, -257), 0.0}}};
+    EXPECT_THROW(triangles::ClassifyTriangle(triangle), std::range_error);
+}
+
+namespace
+{
+    void ExpectDegenerateSegmentInEveryOrder(const triangles::Triangle3& triangle,
+                                            const triangles::Segment3& expected)
+    {
+        std::array<std::size_t, 3> order{0, 1, 2};
+        do
+        {
+            SCOPED_TRACE(::testing::Message() << "vertex order: "
+                         << order[0] << order[1] << order[2]);
+            const triangles::Triangle3 permuted{{triangle.vertices[order[0]],
+                                                 triangle.vertices[order[1]],
+                                                 triangle.vertices[order[2]]}};
+            const auto segment = triangles::DegenerateTriangleSegment(permuted);
+            EXPECT_DOUBLE_EQ(segment.start.cord_x, expected.start.cord_x);
+            EXPECT_DOUBLE_EQ(segment.start.cord_y, expected.start.cord_y);
+            EXPECT_DOUBLE_EQ(segment.start.cord_z, expected.start.cord_z);
+            EXPECT_DOUBLE_EQ(segment.end.cord_x, expected.end.cord_x);
+            EXPECT_DOUBLE_EQ(segment.end.cord_y, expected.end.cord_y);
+            EXPECT_DOUBLE_EQ(segment.end.cord_z, expected.end.cord_z);
+        } while (std::next_permutation(order.begin(), order.end()));
+    }
+}
+
+TEST(DegenerateTriangleSegmentTest, ChoosesOuterVerticesInsteadOfFirstTwo)
+{
+    const triangles::Triangle3 triangle{{triangles::Point3{2.0, 0.0, 0.0},
+                                         triangles::Point3{0.0, 0.0, 0.0},
+                                         triangles::Point3{5.0, 0.0, 0.0}}};
+    ExpectDegenerateSegmentInEveryOrder(triangle, {{0.0, 0.0, 0.0}, {5.0, 0.0, 0.0}});
+}
+
+TEST(DegenerateTriangleSegmentTest, HandlesRepeatedVertex)
+{
+    const triangles::Point3 first{-1.0, -2.0, -3.0};
+    const triangles::Point3 last{3.0, 4.0, 5.0};
+    ExpectDegenerateSegmentInEveryOrder({{last, last, first}}, {first, last});
+}
+
+TEST(DegenerateTriangleSegmentTest, ConvertsPointToZeroLengthSegment)
+{
+    const triangles::Point3 point{7.0, -3.0, 2.0};
+    ExpectDegenerateSegmentInEveryOrder({{point, point, point}}, {point, point});
+}
+
+TEST(DegenerateTriangleSegmentTest, HandlesEveryCoordinateAxis)
+{
+    triangles::Triangle3 triangle{{triangles::Point3{0.0, 3.0, 4.0},
+                                    triangles::Point3{-2.0, 3.0, 4.0},
+                                    triangles::Point3{5.0, 3.0, 4.0}}};
+    for (int rotation = 0; rotation < 3; ++rotation)
+    {
+        SCOPED_TRACE(rotation);
+        ExpectDegenerateSegmentInEveryOrder(triangle, {triangle.vertices[1], triangle.vertices[2]});
+        for (auto& point : triangle.vertices)
+            point = {point.cord_y, point.cord_z, point.cord_x};
+    }
+}
+
+TEST(DegenerateTriangleSegmentTest, PreservesWholeEndpointsOfObliqueLine)
+{
+    const triangles::Point3 first{-4.0, 8.0, -12.0};
+    const triangles::Point3 middle{1.0, -2.0, 3.0};
+    const triangles::Point3 last{3.0, -6.0, 9.0};
+    ExpectDegenerateSegmentInEveryOrder({{middle, last, first}}, {first, last});
+}
+
+TEST(DegenerateTriangleSegmentTest, DoesNotOverflowWhenEndpointDifferenceWouldOverflow)
+{
+    const double maximum = std::numeric_limits<double>::max();
+    const triangles::Point3 first{-maximum, 0.0, 0.0};
+    const triangles::Point3 last{maximum, 0.0, 0.0};
+    ExpectDegenerateSegmentInEveryOrder({{first, {0.0, 0.0, 0.0}, last}}, {first, last});
+}
+
+TEST(DegenerateTriangleSegmentTest, PreservesDistinctSubnormalVertices)
+{
+    const double tiny = std::numeric_limits<double>::denorm_min();
+    const triangles::Point3 first{0.0, 0.0, 0.0};
+    const triangles::Point3 last{2.0 * tiny, 0.0, 0.0};
+    // Compare exactly: tolerant floating comparisons could merge these points.
+    const triangles::Triangle3 triangle{{triangles::Point3{tiny, 0.0, 0.0}, first, last}};
+    const auto segment = triangles::DegenerateTriangleSegment(triangle);
+    EXPECT_EQ(segment.start.cord_x, first.cord_x);
+    EXPECT_EQ(segment.end.cord_x, last.cord_x);
+}
+
+TEST(DegenerateTriangleSegmentTest, RejectsRegularAndVeryThinTriangles)
+{
+    const double n = 1099511627776.0;
+    const triangles::Triangle3 regular{{triangles::Point3{0.0, 0.0, 0.0},
+                                        triangles::Point3{1.0, 0.0, 0.0},
+                                        triangles::Point3{0.0, 1.0, 0.0}}};
+    const triangles::Triangle3 thin{{triangles::Point3{0.0, 0.0, 0.0},
+                                     triangles::Point3{n + 1.0, n, 0.0},
+                                     triangles::Point3{n, n - 1.0, 0.0}}};
+    EXPECT_THROW(triangles::DegenerateTriangleSegment(regular), std::invalid_argument);
+    EXPECT_THROW(triangles::DegenerateTriangleSegment(thin), std::invalid_argument);
+}
+
+TEST(DegenerateTriangleSegmentTest, RejectsNonFiniteCoordinates)
+{
+    for (const double invalid : {std::numeric_limits<double>::quiet_NaN(),
+                                std::numeric_limits<double>::infinity(),
+                                -std::numeric_limits<double>::infinity()})
+    {
+        const triangles::Point3 point{invalid, 0.0, 0.0};
+        const triangles::Triangle3 triangle{{point, point, point}};
+        EXPECT_THROW(triangles::DegenerateTriangleSegment(triangle), std::invalid_argument);
+    }
+}
+
+TEST(DegenerateTriangleSegmentTest, PreservesClassificationRangeRestriction)
+{
+    const double tiny = std::scalbn(1.0, -257);
+    const triangles::Triangle3 triangle{{triangles::Point3{0.0, 0.0, 0.0},
+                                         triangles::Point3{1.0, tiny, 0.0},
+                                         triangles::Point3{2.0, 2.0 * tiny, 0.0}}};
+    EXPECT_THROW(triangles::DegenerateTriangleSegment(triangle), std::range_error);
+}
+
+namespace
+{
+    void ExpectPointOnSegmentInBothDirections(const triangles::Point3& point,
+                                             const triangles::Segment3& segment,
+                                             bool expected)
+    {
+        EXPECT_EQ(triangles::PointOnSegment(point, segment), expected);
+        EXPECT_EQ(triangles::PointOnSegment(point, {segment.end, segment.start}), expected);
+    }
+}
+
+TEST(PointOnSegment3DTest, AcceptsInteriorPointOfObliqueSegment)
+{
+    ExpectPointOnSegmentInBothDirections({1.0, -2.0, 3.0},
+                                         {{-4.0, 8.0, -12.0}, {3.0, -6.0, 9.0}}, true);
+}
+
+TEST(PointOnSegment3DTest, IncludesBothEndpoints)
+{
+    const triangles::Segment3 segment{{-2.0, 4.0, 7.0}, {6.0, -4.0, 3.0}};
+    ExpectPointOnSegmentInBothDirections(segment.start, segment, true);
+    ExpectPointOnSegmentInBothDirections(segment.end, segment, true);
+}
+
+TEST(PointOnSegment3DTest, RejectsCollinearPointsBeyondEitherEndpoint)
+{
+    const triangles::Segment3 segment{{1.0, 2.0, 3.0}, {3.0, 6.0, 9.0}};
+    ExpectPointOnSegmentInBothDirections({0.0, 0.0, 0.0}, segment, false);
+    ExpectPointOnSegmentInBothDirections({4.0, 8.0, 12.0}, segment, false);
+}
+
+TEST(PointOnSegment3DTest, BoundingBoxMembershipAloneIsInsufficient)
+{
+    triangles::Point3 point{1.0, 1.0, 0.5};
+    const triangles::Segment3 segment{{0.0, 0.0, 0.0}, {2.0, 2.0, 2.0}};
+    for (int rotation = 0; rotation < 3; ++rotation)
+    {
+        SCOPED_TRACE(rotation);
+        ExpectPointOnSegmentInBothDirections(point, segment, false);
+        point = {point.cord_y, point.cord_z, point.cord_x};
+    }
+}
+
+TEST(PointOnSegment3DTest, HandlesEveryCoordinateAxisAndFixedCoordinates)
+{
+    triangles::Segment3 segment{{-2.0, 3.0, 4.0}, {5.0, 3.0, 4.0}};
+    triangles::Point3 on{0.0, 3.0, 4.0};
+    triangles::Point3 off{0.0, 3.0, 5.0};
+    for (int rotation = 0; rotation < 3; ++rotation)
+    {
+        SCOPED_TRACE(rotation);
+        ExpectPointOnSegmentInBothDirections(on, segment, true);
+        ExpectPointOnSegmentInBothDirections(off, segment, false);
+        on = {on.cord_y, on.cord_z, on.cord_x};
+        off = {off.cord_y, off.cord_z, off.cord_x};
+        segment.start = {segment.start.cord_y, segment.start.cord_z, segment.start.cord_x};
+        segment.end = {segment.end.cord_y, segment.end.cord_z, segment.end.cord_x};
+    }
+}
+
+TEST(PointOnSegment3DTest, ZeroLengthSegmentContainsOnlyItsOwnPoint)
+{
+    const triangles::Point3 point{0.0, 0.0, 0.0};
+    const triangles::Segment3 segment{point, point};
+    ExpectPointOnSegmentInBothDirections(point, segment, true);
+    const double tiny = std::scalbn(1.0, -100);
+    for (const triangles::Point3& other : {triangles::Point3{tiny, 0.0, 0.0},
+                                          triangles::Point3{0.0, tiny, 0.0},
+                                          triangles::Point3{0.0, 0.0, tiny}})
+        ExpectPointOnSegmentInBothDirections(other, segment, false);
+}
+
+TEST(PointOnSegment3DTest, RejectsNearCollinearityBeyondOrdinaryDeterminantPrecision)
+{
+    for (const int exponent : {27, 40, 52})
+    {
+        const double n = std::scalbn(1.0, exponent);
+        triangles::Point3 point{n, n - 1.0, 0.0};
+        triangles::Segment3 segment{{0.0, 0.0, 0.0}, {n + 1.0, n, 0.0}};
+        for (int rotation = 0; rotation < 3; ++rotation)
+        {
+            SCOPED_TRACE(::testing::Message() << "exponent: " << exponent << ", rotation: " << rotation);
+            ExpectPointOnSegmentInBothDirections(point, segment, false);
+            point = {point.cord_y, point.cord_z, point.cord_x};
+            segment.end = {segment.end.cord_y, segment.end.cord_z, segment.end.cord_x};
+        }
+    }
+}
+
+TEST(PointOnSegment3DTest, AvoidsOverflowForExtremeOppositeEndpoints)
+{
+    const double maximum = std::numeric_limits<double>::max();
+    const triangles::Segment3 segment{{-maximum, 0.0, 0.0}, {maximum, 0.0, 0.0}};
+    ExpectPointOnSegmentInBothDirections({0.0, 0.0, 0.0}, segment, true);
+    ExpectPointOnSegmentInBothDirections(segment.start, segment, true);
+    ExpectPointOnSegmentInBothDirections(segment.end, segment, true);
+}
+
+TEST(PointOnSegment3DTest, HandlesUniformlyTinyAndHugeScenes)
+{
+    for (const int exponent : {-900, 900})
+    {
+        SCOPED_TRACE(exponent);
+        const double scale = std::scalbn(1.0, exponent);
+        const triangles::Segment3 segment{{0.0, 0.0, 0.0}, {2.0 * scale, 2.0 * scale, 2.0 * scale}};
+        ExpectPointOnSegmentInBothDirections({scale, scale, scale}, segment, true);
+        ExpectPointOnSegmentInBothDirections({3.0 * scale, 3.0 * scale, 3.0 * scale}, segment, false);
+        ExpectPointOnSegmentInBothDirections({scale, scale, 1.5 * scale}, segment, false);
+    }
+}
+
+TEST(PointOnSegment3DTest, SupportsExponentSpreadBoundaryWithoutEpsilon)
+{
+    const double tiny = std::scalbn(1.0, -256);
+    const triangles::Segment3 segment{{0.0, 0.0, 0.0}, {1.0, 1.0, 0.0}};
+    ExpectPointOnSegmentInBothDirections({tiny, tiny, 0.0}, segment, true);
+    ExpectPointOnSegmentInBothDirections({-tiny, -tiny, 0.0}, segment, false);
+    ExpectPointOnSegmentInBothDirections({tiny, 2.0 * tiny, 0.0}, segment, false);
+}
+
+TEST(PointOnSegment3DTest, RejectsNonFiniteCoordinatesInEveryInputPoint)
+{
+    const std::array<triangles::Point3, 3> original{
+        triangles::Point3{0.0, 0.0, 0.0}, triangles::Point3{2.0, 2.0, 2.0}, triangles::Point3{1.0, 1.0, 1.0}
+    };
+    for (const double invalid : {std::numeric_limits<double>::quiet_NaN(),
+                                std::numeric_limits<double>::infinity(),
+                                -std::numeric_limits<double>::infinity()})
+    {
+        for (std::size_t index = 0; index < original.size(); ++index)
+        {
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                auto points = original;
+                auto& point = points[index];
+                const std::array<double*, 3> coordinates{&point.cord_x, &point.cord_y, &point.cord_z};
+                *coordinates[axis] = invalid;
+                const triangles::Segment3 segment{points[0], points[1]};
+                EXPECT_THROW(triangles::PointOnSegment(points[2], segment), std::invalid_argument);
+            }
+        }
+    }
+}
+
+TEST(PointOnSegment3DTest, PreservesClassificationRangeRestriction)
+{
+    const triangles::Point3 point{0.0, std::scalbn(1.0, -257), 0.0};
+    const triangles::Segment3 segment{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}};
+    EXPECT_THROW(triangles::PointOnSegment(point, segment), std::range_error);
+}

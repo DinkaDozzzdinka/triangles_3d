@@ -1,5 +1,6 @@
 #pragma once
 
+#include "geometry.hpp"
 #include "geometry2d.hpp"
 
 namespace triangles
@@ -11,8 +12,16 @@ namespace triangles
         Positive
     };
 
-    // Finite coordinates are rescaled exactly by a common power of two.
-    // Throws invalid_argument for non-finite inputs and range_error if
-    // nonzero coordinate exponents span more than 256 binary orders.
+
     Sign Orient2DSign(const Point2& a, const Point2& b, const Point2& c);
+    Sign Orient3DSign(const Point3& a, const Point3& b, const Point3& c, const Point3& point);
+
+    struct PlaneSideValues
+    {
+        double start;
+        double end;
+    };
+
+    PlaneSideValues ScaledPlaneSideValues(const Segment3& segment, const Triangle3& plane);
+
 }

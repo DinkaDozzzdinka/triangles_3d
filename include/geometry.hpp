@@ -43,8 +43,16 @@ namespace triangles
         Z
     };
 
-    
-    
+    enum class TriangleKind
+    {
+        Point,
+        Segment,
+        Triangle
+    };
+
+
+
+
     Vec3 operator-(const Point3& lhs, const Point3& rhs);
     Vec3 operator+(const Vec3& lhs, const Vec3& rhs);
     Point3 operator+(const Point3& point, const Vec3& displacement);
@@ -58,5 +66,8 @@ namespace triangles
     Aabb3 Bounds(const Triangle3& triangle);
     double SignedDistanceToPlane(const Point3& point,const Triangle3& triangle);
     Axis DominantAxis(const Vec3& normal);
+    TriangleKind ClassifyTriangle(const Triangle3& triangle);
+    Segment3 DegenerateTriangleSegment(const Triangle3& triangle);
+    bool PointOnSegment(const Point3& point, const Segment3& segment);
 
 }

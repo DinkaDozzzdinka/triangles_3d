@@ -1,4 +1,5 @@
 #include "geometry.hpp"
+#include "predicates.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -114,6 +115,69 @@ namespace triangles
         else if (max_component == std:: abs(normal.cord_y))
                 return Axis::Y;
         else return Axis::Z;
+    }
+
+    TriangleKind ClassifyTriangle(const Triangle3& triangle)
+    {
+        for (const Point3& point : triangle.vertices)
+        {
+            if (!std::isfinite(point.cord_x) || !std::isfinite(point.cord_y)
+                || !std::isfinite(point.cord_z))
+                throw std::invalid_argument("Triangle classification requires finite coordinates");
+        }
+
+        const Point3& a = triangle.vertices[0];
+        const Point3& b = triangle.vertices[1];
+        const Point3& c = triangle.vertices[2];
+        const auto same_point = [](const Point3& first, const Point3& second)
+        {
+            return first.cord_x == second.cord_x
+                && first.cord_y == second.cord_y
+                && first.cord_z == second.cord_z;
+        };
+
+        if (same_point(a, b) && same_point(a, c))
+            return TriangleKind::Point;
+
+        const Sign xy = Orient2DSign({a.cord_x, a.cord_y}, {b.cord_x, b.cord_y}, {c.cord_x, c.cord_y});
+        const Sign yz = Orient2DSign({a.cord_y, a.cord_z}, {b.cord_y, b.cord_z}, {c.cord_y, c.cord_z});
+        const Sign zx = Orient2DSign({a.cord_z, a.cord_x}, {b.cord_z, b.cord_x}, {c.cord_z, c.cord_x});
+
+        if (xy != Sign::Zero || yz != Sign::Zero || zx != Sign::Zero)
+            return TriangleKind::Triangle;
+        return TriangleKind::Segment;
+    }
+
+    Segment3 DegenerateTriangleSegment(const Triangle3& triangle)
+    {
+        if (ClassifyTriangle(triangle) == TriangleKind::Triangle)
+            throw std::invalid_argument("A nondegenerate triangle cannot be represented by a segment");
+
+        const auto less = [](const Point3& first, const Point3& second)
+        {
+            if (first.cord_x != second.cord_x)
+                return first.cord_x < second.cord_x;
+            if (first.cord_y != second.cord_y)
+                return first.cord_y < second.cord_y;
+            return first.cord_z < second.cord_z;
+        };
+        const auto [first, last] = std::minmax_element(triangle.vertices.begin(),
+                                                     triangle.vertices.end(), less);
+        return {*first, *last};
+    }
+
+    bool PointOnSegment(const Point3& point, const Segment3& segment)
+    {
+        const Triangle3 points{{segment.start, segment.end, point}};
+        if (ClassifyTriangle(points) == TriangleKind::Triangle)
+            return false;
+
+        return std::min(segment.start.cord_x, segment.end.cord_x) <= point.cord_x
+            && point.cord_x <= std::max(segment.start.cord_x, segment.end.cord_x)
+            && std::min(segment.start.cord_y, segment.end.cord_y) <= point.cord_y
+            && point.cord_y <= std::max(segment.start.cord_y, segment.end.cord_y)
+            && std::min(segment.start.cord_z, segment.end.cord_z) <= point.cord_z
+            && point.cord_z <= std::max(segment.start.cord_z, segment.end.cord_z);
     }
 
 }
