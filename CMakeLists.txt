@@ -38,7 +38,8 @@ add_library(triangle_geometry STATIC
     src/geometry.cpp
     src/geometry2d.cpp
     src/projection.cpp
-    src/intersection.cpp)
+    src/intersection.cpp
+    src/predicates.cpp)
 
 target_include_directories(triangle_geometry PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -46,6 +47,24 @@ target_include_directories(triangle_geometry PUBLIC
 
 target_link_libraries(triangles_3d PRIVATE triangle_geometry)
 
+
+add_library(robust_predicates STATIC
+    third_party/robust_predicates/predicates.c
+)
+
+set_target_properties(robust_predicates PROPERTIES
+    C_STANDARD 99
+    C_STANDARD_REQUIRED ON
+)
+
+if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(robust_predicates PRIVATE
+        -O2 -fno-fast-math -ffp-contract=off
+    )
+endif()
+
+target_link_libraries(robust_predicates PRIVATE m)
+target_link_libraries(triangle_geometry PRIVATE robust_predicates)
 
 include(CTest)
 if (BUILD_TESTING)
@@ -70,7 +89,8 @@ if (BUILD_TESTING)
     add_executable(geometry_tests 
         tests/geometry_test.cpp
         tests/geometry2d_test.cpp
-        tests/intersection_test.cpp)
+        tests/intersection_test.cpp
+        tests/predicates_test.cpp)
     target_link_libraries(geometry_tests PRIVATE triangle_geometry GTest::gtest_main)
     gtest_discover_tests(geometry_tests)
     endif()

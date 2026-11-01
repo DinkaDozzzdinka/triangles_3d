@@ -685,4 +685,14 @@ namespace triangles
         ExpectSegmentTriangleIntersectionInAnyOrder({{-2.5, -1.0}, {0.5, -1.0}}, triangle, true);
     }
 
+    TEST (Orient2DTest, NearCollinearIntegerCoordinates)
+    {
+        const double n = 134217728.0;
+        const Point2 a{0.0, 0.0};
+        const Point2 b{n + 1.0, n};
+        const Point2 c{n, n - 1.0};
+
+        EXPECT_EQ(Orient2D (a, b, c), -1.0);
+    }
+
 }

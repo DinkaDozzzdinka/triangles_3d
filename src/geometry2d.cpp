@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstddef>
 #include "geometry2d.hpp"
+#include "predicates.hpp"
 
 
 namespace triangles
@@ -8,12 +9,23 @@ namespace triangles
 
     double Orient2D(const Point2& a, const Point2& b, const Point2& c)
     {
-        return ((b.cord_x - a.cord_x) * (c.cord_y - a.cord_y) - (b.cord_y - a.cord_y) * (c.cord_x - a.cord_x));
+        const long double ax = a.cord_x;
+        const long double bx = b.cord_x;
+        const long double cx = c.cord_x;
+        const long double ay = a.cord_y;
+        const long double by = b.cord_y;
+        const long double cy = c.cord_y;
+        const long double ab_x = bx - ax;
+        const long double ac_x = cx - ax;
+        const long double ac_y = cy - ay;
+        const long double ab_y = by - ay;
+
+        return (ab_x * ac_y - ab_y * ac_x);
     }
 
     bool PointOnSegment(const Point2& c, const Point2& a, const Point2& b)
     {
-        if (Orient2D(a, b, c) != 0.0)
+        if (Orient2DSign(a, b, c) != Sign::Zero)
             return false;
 
         return std::min(a.cord_x, b.cord_x) <= c.cord_x
@@ -24,26 +36,40 @@ namespace triangles
 
     bool SegmentsIntersect(const Segment2& lhs, const Segment2& rhs)
     {
-        const double o1 = Orient2D(lhs.start, lhs.end, rhs.start);
-        const double o2 = Orient2D(lhs.start, lhs.end, rhs.end);
-        const double o3 = Orient2D(rhs.start, rhs.end, lhs.start);
-        const double o4 = Orient2D(rhs.start, rhs.end, lhs.end);
+        const Sign o1 = Orient2DSign(lhs.start, lhs.end, rhs.start);
+        const Sign o2 = Orient2DSign(lhs.start, lhs.end, rhs.end);
+        const Sign o3 = Orient2DSign(rhs.start, rhs.end, lhs.start);
+        const Sign o4 = Orient2DSign(rhs.start, rhs.end, lhs.end);
 
-        if ((o1 == 0.0 && PointOnSegment (rhs.start, lhs.start, lhs.end)|| o2 == 0.0 && PointOnSegment (rhs.end, lhs.start, lhs.end) || o3 == 0.0 && PointOnSegment (lhs.start, rhs.start, rhs.end) || o4 == 0.0 && PointOnSegment (lhs.end, rhs.start, rhs.end)))
+        if ((o1 == Sign::Zero && PointOnSegment(rhs.start, lhs.start, lhs.end))
+         || (o2 == Sign::Zero && PointOnSegment(rhs.end, lhs.start, lhs.end))
+         || (o3 == Sign::Zero && PointOnSegment(lhs.start, rhs.start, rhs.end))
+         || (o4 == Sign::Zero && PointOnSegment(lhs.end, rhs.start, rhs.end)))
             return true;
-        else if (((o1 > 0.0 && o2 < 0.0) || (o1 < 0.0 && o2 > 0.0)) && ((o3 > 0.0 && o4 < 0.0) || (o3 < 0.0 && o4 > 0.0)))
-            return true;
-        return false;
+
+        const bool rhs_straddles = (o1 == Sign::Positive && o2 == Sign::Negative)
+                               || (o1 == Sign::Negative && o2 == Sign::Positive);
+        const bool lhs_straddles = (o3 == Sign::Positive && o4 == Sign::Negative)
+                               || (o3 == Sign::Negative && o4 == Sign::Positive);
+        return rhs_straddles && lhs_straddles;
     }
 
     bool PointInTriangle(const Point2& point, const Triangle2& triangle)
     {
-        Point2 a = triangle.vertices2[0];
-        Point2 b = triangle.vertices2[1];
-        Point2 c = triangle.vertices2[2];
-        if ((Orient2D(a, b, point) >= 0 && Orient2D(b, c, point) >= 0 && Orient2D(c, a, point) >= 0) || (Orient2D(a, b, point) <= 0 && Orient2D(b, c, point) <= 0 && Orient2D(c, a, point) <= 0)) 
-            return true;
-        return false;
+        const Point2& a = triangle.vertices2[0];
+        const Point2& b = triangle.vertices2[1];
+        const Point2& c = triangle.vertices2[2];
+        const Sign ab = Orient2DSign(a, b, point);
+        const Sign bc = Orient2DSign(b, c, point);
+        const Sign ca = Orient2DSign(c, a, point);
+
+        const bool no_negative = ab != Sign::Negative
+                              && bc != Sign::Negative
+                              && ca != Sign::Negative;
+        const bool no_positive = ab != Sign::Positive
+                              && bc != Sign::Positive
+                              && ca != Sign::Positive;
+        return no_negative || no_positive;
     }
 
     bool TrianglesIntersect(const Triangle2& lhs, const Triangle2& rhs)
