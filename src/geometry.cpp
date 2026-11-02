@@ -8,6 +8,18 @@
 
 namespace triangles
 {
+    namespace
+    {
+        bool PointLess(const Point3& first, const Point3& second)
+        {
+            if (first.cord_x != second.cord_x)
+                return first.cord_x < second.cord_x;
+            if (first.cord_y != second.cord_y)
+                return first.cord_y < second.cord_y;
+            return first.cord_z < second.cord_z;
+        }
+    }
+
     Vec3 operator-(const Point3& lhs, const Point3& rhs)
     {
         Vec3 res_vector{};
@@ -129,14 +141,12 @@ namespace triangles
         const Point3& a = triangle.vertices[0];
         const Point3& b = triangle.vertices[1];
         const Point3& c = triangle.vertices[2];
-        const auto same_point = [](const Point3& first, const Point3& second)
-        {
-            return first.cord_x == second.cord_x
-                && first.cord_y == second.cord_y
-                && first.cord_z == second.cord_z;
-        };
+        const bool a_equals_b = a.cord_x == b.cord_x
+            && a.cord_y == b.cord_y && a.cord_z == b.cord_z;
+        const bool a_equals_c = a.cord_x == c.cord_x
+            && a.cord_y == c.cord_y && a.cord_z == c.cord_z;
 
-        if (same_point(a, b) && same_point(a, c))
+        if (a_equals_b && a_equals_c)
             return TriangleKind::Point;
 
         const Sign xy = Orient2DSign({a.cord_x, a.cord_y}, {b.cord_x, b.cord_y}, {c.cord_x, c.cord_y});
@@ -153,17 +163,9 @@ namespace triangles
         if (ClassifyTriangle(triangle) == TriangleKind::Triangle)
             throw std::invalid_argument("A nondegenerate triangle cannot be represented by a segment");
 
-        const auto less = [](const Point3& first, const Point3& second)
-        {
-            if (first.cord_x != second.cord_x)
-                return first.cord_x < second.cord_x;
-            if (first.cord_y != second.cord_y)
-                return first.cord_y < second.cord_y;
-            return first.cord_z < second.cord_z;
-        };
-        const auto [first, last] = std::minmax_element(triangle.vertices.begin(),
-                                                     triangle.vertices.end(), less);
-        return {*first, *last};
+        const auto endpoints = std::minmax_element(triangle.vertices.begin(),
+                                                  triangle.vertices.end(), PointLess);
+        return {*endpoints.first, *endpoints.second};
     }
 
     bool PointOnSegment(const Point3& point, const Segment3& segment)

@@ -101,7 +101,6 @@ namespace triangles
             return Sign::Zero;
 
         InitializePredicates();
-        // The C routine has the opposite convention to ((b-a) x (c-a)) dot (point-a).
         return DeterminantSign(-orient3d(coordinates.data(), coordinates.data() + 3, coordinates.data() + 6, coordinates.data() + 9));
     }
 
