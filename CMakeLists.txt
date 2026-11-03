@@ -48,6 +48,12 @@ target_include_directories(triangle_geometry PUBLIC
 
 target_link_libraries(triangles_3d PRIVATE triangle_geometry)
 
+add_executable(bvh_benchmark src/bvh_benchmark.cpp)
+target_link_libraries(bvh_benchmark PRIVATE triangle_geometry)
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(bvh_benchmark PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 
 add_library(robust_predicates STATIC
     third_party/robust_predicates/predicates.c

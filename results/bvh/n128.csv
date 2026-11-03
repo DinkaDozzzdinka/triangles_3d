@@ -1,0 +1,4 @@
+scenario,n,repeats,bruteforce_pairs,candidate_pairs,exact_checks,bruteforce_ms,bvh_ms,masks_equal
+separated,128,3,8128,192,0,55.573691,0.060000,true
+paired,128,3,8128,192,64,50.508392,0.166800,true
+dense,128,3,8128,8128,8128,12.185198,11.834098,true

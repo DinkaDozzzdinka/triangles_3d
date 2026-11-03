@@ -146,8 +146,6 @@ namespace triangles
         if (!OppositeSides(start_side, end_side))
             return false;
 
-        // These volumes test the piercing line against the three triangle edges.
-        // No rounded intersection point is constructed for this Boolean decision.
         const Sign ab = Orient3DSign(segment.start, segment.end, a, b);
         const Sign bc = Orient3DSign(segment.start, segment.end, b, c);
         const Sign ca = Orient3DSign(segment.start, segment.end, c, a);

@@ -1,0 +1,9 @@
+AddressSanitizer + UndefinedBehaviorSanitizer; ASAN_OPTIONS=detect_leaks=0; UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+/tmp/triangle3d-sanitized/geometry_tests --gtest_brief=1
+Running main() from /mnt/c/ubwsl/vlados/triangle_3d/build/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] 443 tests from 38 test suites ran. (565 ms total)
+[  PASSED  ] 443 tests.
+/tmp/triangle3d-sanitized/input_tests --gtest_brief=1
+Running main() from /mnt/c/ubwsl/vlados/triangle_3d/build/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] 14 tests from 1 test suite ran. (3 ms total)
+[  PASSED  ] 14 tests.

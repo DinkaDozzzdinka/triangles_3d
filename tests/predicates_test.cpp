@@ -7,8 +7,69 @@
 #include <cstddef>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 #include <gtest/gtest.h>
+
+extern "C"
+{
+    int fast_expansion_sum(int, double*, int, double*, double*);
+    int fast_expansion_sum_zeroelim(int, double*, int, double*, double*);
+    int linear_expansion_sum(int, double*, int, double*, double*);
+    int linear_expansion_sum_zeroelim(int, double*, int, double*, double*);
+}
+
+namespace
+{
+    using ExpansionSum = int (*)(int, double*, int, double*, double*);
+
+    void ExpectExpansionSum(std::vector<double> first, std::vector<double> second, double expected)
+    {
+        const std::array<ExpansionSum, 4> functions{
+            fast_expansion_sum, fast_expansion_sum_zeroelim,
+            linear_expansion_sum, linear_expansion_sum_zeroelim
+        };
+        const int first_length = first.size();
+        const int second_length = second.size();
+        for (std::size_t i = 0; i < functions.size(); ++i)
+        {
+            SCOPED_TRACE(i);
+            std::vector<double> output(first.size() + second.size());
+            const int length = functions[i](first_length, first.data(), second_length, second.data(), output.data());
+            ASSERT_GT(length, 0);
+            ASSERT_LE(length, first_length + second_length);
+            double sum = 0.0;
+            for (int component = 0; component < length; ++component)
+                sum += output[component];
+            EXPECT_EQ(sum, expected);
+        }
+    }
+}
+
+TEST(RobustExpansionSumTest, SingleComponentArraysDoNotReadPastTheEnd)
+{
+    ExpectExpansionSum({1.0}, {2.0}, 3.0);
+    ExpectExpansionSum({2.0}, {1.0}, 3.0);
+    ExpectExpansionSum({1.0}, {-1.0}, 0.0);
+    ExpectExpansionSum({0.0}, {0.0}, 0.0);
+}
+
+TEST(RobustExpansionSumTest, UnequalLengthsPreserveTinyCancellationResidual)
+{
+    const double tiny = std::scalbn(1.0, -200);
+    ExpectExpansionSum({tiny, 1.0}, {-1.0}, tiny);
+    ExpectExpansionSum({-1.0}, {tiny, 1.0}, tiny);
+    ExpectExpansionSum({-tiny, -1.0}, {1.0}, -tiny);
+    ExpectExpansionSum({1.0}, {-tiny, -1.0}, -tiny);
+}
+
+TEST(RobustExpansionSumTest, BothFullLengthArraysCanBeExhaustedSafely)
+{
+    const double tiny = std::scalbn(1.0, -200);
+    ExpectExpansionSum({tiny, 1.0}, {-tiny, -1.0}, 0.0);
+    ExpectExpansionSum({tiny, 1.0}, {tiny, -1.0}, 2.0 * tiny);
+    ExpectExpansionSum({tiny, -1.0}, {tiny, 1.0}, 2.0 * tiny);
+}
 
 namespace triangles
 {
