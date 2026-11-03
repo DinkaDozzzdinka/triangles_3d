@@ -39,7 +39,8 @@ add_library(triangle_geometry STATIC
     src/geometry2d.cpp
     src/projection.cpp
     src/intersection.cpp
-    src/predicates.cpp)
+    src/predicates.cpp
+    src/bvh.cpp)
 
 target_include_directories(triangle_geometry PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -90,7 +91,8 @@ if (BUILD_TESTING)
         tests/geometry_test.cpp
         tests/geometry2d_test.cpp
         tests/intersection_test.cpp
-        tests/predicates_test.cpp)
+        tests/predicates_test.cpp
+        tests/bvh_test.cpp)
     target_link_libraries(geometry_tests PRIVATE triangle_geometry GTest::gtest_main)
     gtest_discover_tests(geometry_tests)
     endif()

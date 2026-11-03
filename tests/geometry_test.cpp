@@ -1391,3 +1391,178 @@ TEST(PointOnSegment3DTest, PreservesClassificationRangeRestriction)
     const triangles::Segment3 segment{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}};
     EXPECT_THROW(triangles::PointOnSegment(point, segment), std::range_error);
 }
+
+namespace
+{
+    void ExpectBoundsOverlapBothOrders(const triangles::Aabb3& lhs,
+                                       const triangles::Aabb3& rhs, bool expected)
+    {
+        EXPECT_EQ(triangles::BoundsOverlap(lhs, rhs), expected);
+        EXPECT_EQ(triangles::BoundsOverlap(rhs, lhs), expected);
+    }
+}
+
+TEST(BoundsOverlapTest, PartialOverlapContainmentAndCoincidence)
+{
+    const triangles::Aabb3 box{{0.0, 0.0, 0.0}, {2.0, 2.0, 2.0}};
+    ExpectBoundsOverlapBothOrders(box, {{1.0, 1.0, 1.0}, {3.0, 3.0, 3.0}}, true);
+    ExpectBoundsOverlapBothOrders(box, {{0.5, 0.5, 0.5}, {1.5, 1.5, 1.5}}, true);
+    ExpectBoundsOverlapBothOrders(box, box, true);
+}
+
+TEST(BoundsOverlapTest, SeparationOnEitherSideOfEveryAxis)
+{
+    const triangles::Aabb3 box{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}};
+    const triangles::Aabb3 separated[]{
+        {{2.0, 0.0, 0.0}, {3.0, 1.0, 1.0}}, {{-2.0, 0.0, 0.0}, {-1.0, 1.0, 1.0}},
+        {{0.0, 2.0, 0.0}, {1.0, 3.0, 1.0}}, {{0.0, -2.0, 0.0}, {1.0, -1.0, 1.0}},
+        {{0.0, 0.0, 2.0}, {1.0, 1.0, 3.0}}, {{0.0, 0.0, -2.0}, {1.0, 1.0, -1.0}}
+    };
+    for (const auto& other : separated)
+        ExpectBoundsOverlapBothOrders(box, other, false);
+}
+
+TEST(BoundsOverlapTest, IncludesFaceEdgeAndVertexContacts)
+{
+    const triangles::Aabb3 box{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}};
+    ExpectBoundsOverlapBothOrders(box, {{1.0, 0.0, 0.0}, {2.0, 1.0, 1.0}}, true);
+    ExpectBoundsOverlapBothOrders(box, {{1.0, 1.0, 0.0}, {2.0, 2.0, 1.0}}, true);
+    ExpectBoundsOverlapBothOrders(box, {{1.0, 1.0, 1.0}, {2.0, 2.0, 2.0}}, true);
+}
+
+TEST(BoundsOverlapTest, HandlesFlatBoxesAndLineBoxes)
+{
+    const triangles::Aabb3 box{{0.0, 0.0, 0.0}, {2.0, 2.0, 2.0}};
+    ExpectBoundsOverlapBothOrders(box, {{0.0, 0.0, 1.0}, {2.0, 2.0, 1.0}}, true);
+    ExpectBoundsOverlapBothOrders(box, {{0.0, 0.0, 3.0}, {2.0, 2.0, 3.0}}, false);
+    ExpectBoundsOverlapBothOrders(box, {{-1.0, 1.0, 1.0}, {3.0, 1.0, 1.0}}, true);
+    ExpectBoundsOverlapBothOrders({{0.0, -1.0, -1.0}, {0.0, 1.0, 1.0}},
+                                  {{-1.0, 0.0, -1.0}, {1.0, 0.0, 1.0}}, true);
+}
+
+TEST(BoundsOverlapTest, HandlesPointBoxes)
+{
+    const triangles::Aabb3 point{{1.0, 1.0, 1.0}, {1.0, 1.0, 1.0}};
+    ExpectBoundsOverlapBothOrders(point, point, true);
+    ExpectBoundsOverlapBothOrders(point, {{2.0, 1.0, 1.0}, {2.0, 1.0, 1.0}}, false);
+    ExpectBoundsOverlapBothOrders(point, {{0.0, 0.0, 0.0}, {2.0, 2.0, 2.0}}, true);
+    ExpectBoundsOverlapBothOrders(point, {{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}, true);
+}
+
+TEST(BoundsOverlapTest, PositiveGapIsNotMergedByTolerance)
+{
+    const double next = std::nextafter(1.0, std::numeric_limits<double>::infinity());
+    ExpectBoundsOverlapBothOrders({{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}},
+                                  {{next, 0.0, 0.0}, {2.0, 1.0, 1.0}}, false);
+}
+
+TEST(BoundsOverlapTest, HandlesNegativeCoordinates)
+{
+    const triangles::Aabb3 box{{-5.0, -5.0, -5.0}, {-2.0, -2.0, -2.0}};
+    ExpectBoundsOverlapBothOrders(box, {{-3.0, -3.0, -3.0}, {-1.0, -1.0, -1.0}}, true);
+    ExpectBoundsOverlapBothOrders(box, {{-1.0, -3.0, -3.0}, {0.0, -1.0, -1.0}}, false);
+}
+
+TEST(BoundsOverlapTest, AvoidsArithmeticOverflowWithExtremeFiniteCoordinates)
+{
+    const double maximum = std::numeric_limits<double>::max();
+    const triangles::Aabb3 positive{{maximum / 2.0, 0.0, 0.0}, {maximum, 1.0, 1.0}};
+    const triangles::Aabb3 negative{{-maximum, 0.0, 0.0}, {-maximum / 2.0, 1.0, 1.0}};
+    ExpectBoundsOverlapBothOrders(positive, negative, false);
+    ExpectBoundsOverlapBothOrders(positive, {{-maximum, 0.0, 0.0}, {maximum, 1.0, 1.0}}, true);
+}
+
+namespace
+{
+    void ExpectBoundsEqual(const triangles::Aabb3& actual, const triangles::Aabb3& expected)
+    {
+        EXPECT_EQ(actual.minimum.cord_x, expected.minimum.cord_x);
+        EXPECT_EQ(actual.minimum.cord_y, expected.minimum.cord_y);
+        EXPECT_EQ(actual.minimum.cord_z, expected.minimum.cord_z);
+        EXPECT_EQ(actual.maximum.cord_x, expected.maximum.cord_x);
+        EXPECT_EQ(actual.maximum.cord_y, expected.maximum.cord_y);
+        EXPECT_EQ(actual.maximum.cord_z, expected.maximum.cord_z);
+    }
+
+    void ExpectMergedBoundsBothOrders(const triangles::Aabb3& lhs,
+                                      const triangles::Aabb3& rhs,
+                                      const triangles::Aabb3& expected)
+    {
+        ExpectBoundsEqual(triangles::MergeBounds(lhs, rhs), expected);
+        ExpectBoundsEqual(triangles::MergeBounds(rhs, lhs), expected);
+    }
+}
+
+TEST(MergeBoundsTest, SelectsEachCoordinateExtremumIndependently)
+{
+    ExpectMergedBoundsBothOrders({{-5.0, 2.0, -1.0}, {4.0, 3.0, 8.0}},
+                                 {{-2.0, -7.0, -6.0}, {9.0, 12.0, 5.0}},
+                                 {{-5.0, -7.0, -6.0}, {9.0, 12.0, 8.0}});
+}
+
+TEST(MergeBoundsTest, EnclosesSeparatedBoxesIncludingGap)
+{
+    ExpectMergedBoundsBothOrders({{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}},
+                                 {{2.0, -1.0, 0.5}, {3.0, 2.0, 4.0}},
+                                 {{0.0, -1.0, 0.0}, {3.0, 2.0, 4.0}});
+}
+
+TEST(MergeBoundsTest, ContainmentAndCoincidencePreserveOuterBounds)
+{
+    const triangles::Aabb3 outer{{-4.0, -3.0, -2.0}, {5.0, 6.0, 7.0}};
+    ExpectMergedBoundsBothOrders(outer, {{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}, outer);
+    ExpectMergedBoundsBothOrders(outer, outer, outer);
+}
+
+TEST(MergeBoundsTest, HandlesPointBoxes)
+{
+    const triangles::Aabb3 point{{1.0, -2.0, 3.0}, {1.0, -2.0, 3.0}};
+    ExpectMergedBoundsBothOrders(point, point, point);
+    ExpectMergedBoundsBothOrders(point, {{-4.0, 5.0, 0.0}, {-4.0, 5.0, 0.0}},
+                                 {{-4.0, -2.0, 0.0}, {1.0, 5.0, 3.0}});
+}
+
+TEST(MergeBoundsTest, HandlesFlatAndLineBoxes)
+{
+    ExpectMergedBoundsBothOrders({{-2.0, 0.0, 1.0}, {2.0, 0.0, 1.0}},
+                                 {{0.0, -3.0, 1.0}, {0.0, 3.0, 1.0}},
+                                 {{-2.0, -3.0, 1.0}, {2.0, 3.0, 1.0}});
+    ExpectMergedBoundsBothOrders({{0.0, 0.0, 1.0}, {2.0, 2.0, 1.0}},
+                                 {{0.0, 0.0, 3.0}, {2.0, 2.0, 3.0}},
+                                 {{0.0, 0.0, 1.0}, {2.0, 2.0, 3.0}});
+}
+
+TEST(MergeBoundsTest, HandlesNegativeFractionalCoordinates)
+{
+    ExpectMergedBoundsBothOrders({{-5.5, -4.25, -3.0}, {-2.5, -2.0, -1.25}},
+                                 {{-6.0, -3.5, -2.25}, {-4.0, -0.5, -0.25}},
+                                 {{-6.0, -4.25, -3.0}, {-2.5, -0.5, -0.25}});
+}
+
+TEST(MergeBoundsTest, GroupingAndInputOrderPreserveWholeGroupBounds)
+{
+    const triangles::Aabb3 boxes[]{
+        {{-3.0, 1.0, 0.0}, {0.0, 2.0, 1.0}},
+        {{2.0, -4.0, 3.0}, {5.0, -1.0, 6.0}},
+        {{-1.0, 0.0, -5.0}, {1.0, 7.0, 2.0}}
+    };
+    const triangles::Aabb3 expected{{-3.0, -4.0, -5.0}, {5.0, 7.0, 6.0}};
+    std::array<std::size_t, 3> order{0, 1, 2};
+    do
+    {
+        SCOPED_TRACE(::testing::Message() << "box order: " << order[0] << order[1] << order[2]);
+        const auto& a = boxes[order[0]];
+        const auto& b = boxes[order[1]];
+        const auto& c = boxes[order[2]];
+        ExpectBoundsEqual(triangles::MergeBounds(triangles::MergeBounds(a, b), c), expected);
+        ExpectBoundsEqual(triangles::MergeBounds(a, triangles::MergeBounds(b, c)), expected);
+    } while (std::next_permutation(order.begin(), order.end()));
+}
+
+TEST(MergeBoundsTest, PreservesExtremeFiniteCoordinatesWithoutArithmeticOverflow)
+{
+    const double maximum = std::numeric_limits<double>::max();
+    ExpectMergedBoundsBothOrders({{-maximum, -1.0, 0.0}, {-maximum / 2.0, 0.0, 1.0}},
+                                 {{maximum / 2.0, 0.0, -1.0}, {maximum, 1.0, 0.0}},
+                                 {{-maximum, -1.0, -1.0}, {maximum, 1.0, 1.0}});
+}

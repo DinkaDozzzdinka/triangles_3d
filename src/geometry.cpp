@@ -182,4 +182,26 @@ namespace triangles
             && point.cord_z <= std::max(segment.start.cord_z, segment.end.cord_z);
     }
 
+    bool BoundsOverlap(const Aabb3& lhs, const Aabb3& rhs)
+    {
+        return lhs.minimum.cord_x <= rhs.maximum.cord_x
+            && rhs.minimum.cord_x <= lhs.maximum.cord_x
+            && lhs.minimum.cord_y <= rhs.maximum.cord_y
+            && rhs.minimum.cord_y <= lhs.maximum.cord_y
+            && lhs.minimum.cord_z <= rhs.maximum.cord_z
+            && rhs.minimum.cord_z <= lhs.maximum.cord_z;
+    }
+
+    Aabb3 MergeBounds(const Aabb3& lhs, const Aabb3& rhs)
+    {
+        Aabb3 merge_box{};
+        merge_box.maximum.cord_x = std::max (lhs.maximum.cord_x, rhs.maximum.cord_x);
+        merge_box.maximum.cord_y = std::max (lhs.maximum.cord_y, rhs.maximum.cord_y);
+        merge_box.maximum.cord_z = std::max (lhs.maximum.cord_z, rhs.maximum.cord_z);
+        merge_box.minimum.cord_x = std::min (lhs.minimum.cord_x, rhs.minimum.cord_x);
+        merge_box.minimum.cord_y = std::min (lhs.minimum.cord_y, rhs.minimum.cord_y);
+        merge_box.minimum.cord_z = std::min (lhs.minimum.cord_z, rhs.minimum.cord_z);
+        return merge_box;
+    }
+
 }

@@ -69,5 +69,7 @@ namespace triangles
     TriangleKind ClassifyTriangle(const Triangle3& triangle);
     Segment3 DegenerateTriangleSegment(const Triangle3& triangle);
     bool PointOnSegment(const Point3& point, const Segment3& segment);
+    bool BoundsOverlap(const Aabb3& lhs, const Aabb3& rhs);
+    Aabb3 MergeBounds(const Aabb3& lhs, const Aabb3& rhs);
 
 }
