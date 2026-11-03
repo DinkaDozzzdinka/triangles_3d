@@ -1,4 +1,5 @@
 #include "bvh.hpp"
+#include "intersection.hpp"
 #include <algorithm>
 
 
@@ -85,4 +86,65 @@ namespace triangles
         return false;
     }
 
+    std::vector<std::size_t> FindBvhCandidates(const Bvh& bvh, const Aabb3& query_box)
+    {
+        std::vector<std::size_t> result;
+        if (bvh.nodes.empty())
+            return result;
+        CollectCandidates(bvh, query_box, 0, result);
+        return result;
+    }
+
+    std::vector<bool> FindIntersectionsBvh(const std::vector<Triangle3>& triangles, BvhSearchStats& stats)
+    {
+        stats = {};
+        std::vector<bool> flags(triangles.size(), false);
+        if (triangles.empty())
+            return flags;
+
+        const Bvh bvh = BuildBvh(triangles);
+        std::vector<Aabb3> boxes;
+        boxes.reserve(triangles.size());
+        for (const Triangle3& triangle : triangles)
+            boxes.push_back(Bounds(triangle));
+
+        for (std::size_t i = 0; i < triangles.size(); ++i)
+        {
+            const auto candidates = FindBvhCandidates(bvh, boxes[i]);
+            for (const std::size_t j : candidates)
+            {
+                if (j <= i)
+                    continue;
+
+                ++stats.candidate_pairs;
+                if (!BoundsOverlap(boxes[i], boxes[j]))
+                    continue;
+
+                ++stats.exact_checks;
+                if (TrianglesIntersect(triangles[i], triangles[j]))
+                {
+                    flags[i] = true;
+                    flags[j] = true;
+                }
+            }
+        }
+        return flags;
+    }
+
+    void CollectCandidates(const Bvh& bvh, const Aabb3& query_box, std::size_t node_index, std::vector<std::size_t>& result)
+    {
+        const BvhNode& node = bvh.nodes[node_index];
+        if (!BoundsOverlap(query_box, node.bounds))
+            return;
+
+        if (node.IsLeaf())
+        {
+            for (std::size_t i = node.begin; i < node.begin + node.count; ++i)
+                result.push_back(bvh.indexes[i]);
+            return;
+        }
+
+        CollectCandidates(bvh, query_box, node.left, result);
+        CollectCandidates(bvh, query_box, node.right, result);
+    }
 }

@@ -1,4 +1,5 @@
 #include "bvh.hpp"
+#include "intersection.hpp"
 
 #include <gtest/gtest.h>
 
@@ -6,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <random>
 #include <vector>
 
 namespace triangles
@@ -578,5 +580,279 @@ namespace triangles
         ASSERT_FALSE(first.nodes.empty());
         ASSERT_FALSE(second.nodes.empty());
         ExpectBvhBounds(second.nodes[0].bounds, first.nodes[0].bounds);
+    }
+
+    namespace
+    {
+        std::vector<Triangle3> MakeInterleavedCandidateScene()
+        {
+            std::vector<Triangle3> scene;
+            for (const double x : {100.0, 0.0, 101.0, 1.0, 102.0, 2.0, 103.0, 3.0})
+            {
+                const Point3 point{x, 0.0, 0.0};
+                scene.push_back({{point, point, point}});
+            }
+            return scene;
+        }
+
+        void ExpectCandidateIndexes(std::vector<std::size_t> actual,
+                                    std::vector<std::size_t> expected)
+        {
+            std::sort(actual.begin(), actual.end());
+            std::sort(expected.begin(), expected.end());
+            EXPECT_EQ(actual, expected);
+        }
+    }
+
+    TEST(FindBvhCandidatesTest, EmptyTreeReturnsNoCandidates)
+    {
+        const Bvh bvh = BuildBvh({});
+        EXPECT_TRUE(FindBvhCandidates(bvh, {{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}).empty());
+    }
+
+    TEST(FindBvhCandidatesTest, QueryOutsideRootReturnsNoCandidates)
+    {
+        const Bvh bvh = BuildBvh(MakeSeparatedBvhScene(8));
+        EXPECT_TRUE(FindBvhCandidates(bvh, {{10000.0, 0.0, 0.0}, {10001.0, 1.0, 1.0}}).empty());
+    }
+
+    TEST(FindBvhCandidatesTest, QueryInsideRootGapCanMissBothChildren)
+    {
+        const Bvh bvh = BuildBvh(MakeSeparatedBvhScene(8));
+        const Aabb3 query{{110.5, 0.0, 0.0}, {111.5, 1.0, 0.0}};
+        ASSERT_FALSE(bvh.nodes.empty());
+        ASSERT_TRUE(BoundsOverlap(query, bvh.nodes[0].bounds));
+        EXPECT_TRUE(FindBvhCandidates(bvh, query).empty());
+    }
+
+    TEST(FindBvhCandidatesTest, WholeSceneQueryReturnsEachIndexExactlyOnce)
+    {
+        const auto scene = MakeSeparatedBvhScene(37);
+        const Bvh bvh = BuildBvh(scene);
+        std::vector<std::size_t> expected;
+        for (std::size_t i = 0; i < scene.size(); ++i)
+            expected.push_back(i);
+        ExpectCandidateIndexes(FindBvhCandidates(bvh, {{-1000.0, -1000.0, -1000.0},
+                                                       {1000.0, 1000.0, 1000.0}}), expected);
+    }
+
+    TEST(FindBvhCandidatesTest, RejectsFarClusterAndUsesOriginalTriangleIndexes)
+    {
+        const Bvh bvh = BuildBvh(MakeInterleavedCandidateScene());
+        ExpectCandidateIndexes(FindBvhCandidates(bvh, {{-1.0, -1.0, -1.0}, {4.0, 1.0, 1.0}}),
+                               {1, 3, 5, 7});
+        ExpectCandidateIndexes(FindBvhCandidates(bvh, {{99.0, -1.0, -1.0}, {104.0, 1.0, 1.0}}),
+                               {0, 2, 4, 6});
+    }
+
+    TEST(FindBvhCandidatesTest, IncludesFaceEdgeVertexAndPointContacts)
+    {
+        std::vector<Triangle3> scene;
+        for (const double value : {0.0, 1.0, 2.0, 3.0, 100.0, 101.0, 102.0, 103.0})
+        {
+            const Point3 point{value, value, value};
+            scene.push_back({{point, point, point}});
+        }
+        const Bvh bvh = BuildBvh(scene);
+        const Aabb3 queries[]{
+            {{3.0, 1.0, 1.0}, {4.0, 2.0, 2.0}},
+            {{3.0, 3.0, 1.0}, {4.0, 4.0, 2.0}},
+            {{3.0, 3.0, 3.0}, {4.0, 4.0, 4.0}},
+            {{3.0, 3.0, 3.0}, {3.0, 3.0, 3.0}}
+        };
+        for (const Aabb3& query : queries)
+            ExpectCandidateIndexes(FindBvhCandidates(bvh, query), {0, 1, 2, 3});
+    }
+
+    TEST(FindBvhCandidatesTest, PointQueryMayReturnExtraTrianglesFromTheSameLeaf)
+    {
+        const Bvh bvh = BuildBvh(MakeInterleavedCandidateScene());
+        const Point3 point{1.0, 0.0, 0.0};
+        ExpectCandidateIndexes(FindBvhCandidates(bvh, {point, point}), {1, 3, 5, 7});
+    }
+
+    TEST(FindBvhCandidatesTest, OverlappingLeavesStillReturnEachIndexOnlyOnce)
+    {
+        const Point3 point{5.0, 6.0, 7.0};
+        const Triangle3 triangle{{point, point, point}};
+        const std::vector<Triangle3> scene(17, triangle);
+        const Bvh bvh = BuildBvh(scene);
+        std::vector<std::size_t> expected;
+        for (std::size_t i = 0; i < scene.size(); ++i)
+            expected.push_back(i);
+        ExpectCandidateIndexes(FindBvhCandidates(bvh, {point, point}), expected);
+    }
+
+    TEST(FindIntersectionsBvhTest, EmptySceneResetsStatistics)
+    {
+        BvhSearchStats stats{123, 456};
+        EXPECT_TRUE(FindIntersectionsBvh({}, stats).empty());
+        EXPECT_EQ(stats.candidate_pairs, 0u);
+        EXPECT_EQ(stats.exact_checks, 0u);
+    }
+
+    TEST(FindIntersectionsBvhTest, SingleTriangleDoesNotIntersectItself)
+    {
+        const Triangle3 triangle{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        BvhSearchStats stats{123, 456};
+        EXPECT_EQ(FindIntersectionsBvh({triangle}, stats), (std::vector<bool>{false}));
+        EXPECT_EQ(stats.candidate_pairs, 0u);
+        EXPECT_EQ(stats.exact_checks, 0u);
+    }
+
+    TEST(FindIntersectionsBvhTest, FiltersDisjointBoxesWithinOneLeaf)
+    {
+        const Triangle3 triangle{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const Point3 far{10.0, 10.0, 10.0};
+        const std::vector<Triangle3> scene{triangle, {{far, far, far}}, triangle};
+        BvhSearchStats stats;
+        EXPECT_EQ(FindIntersectionsBvh(scene, stats), (std::vector<bool>{true, false, true}));
+        EXPECT_EQ(stats.candidate_pairs, 3u);
+        EXPECT_EQ(stats.exact_checks, 1u);
+    }
+
+    TEST(FindIntersectionsBvhTest, OverlappingBoxesDoNotGuaranteeTriangleIntersection)
+    {
+        const std::vector<Triangle3> scene{
+            {{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}},
+            {{Point3{2.0, 2.0, 0.0}, Point3{2.0, 1.5, 0.0}, Point3{1.5, 2.0, 0.0}}}
+        };
+        BvhSearchStats stats;
+        EXPECT_EQ(FindIntersectionsBvh(scene, stats), (std::vector<bool>{false, false}));
+        EXPECT_EQ(stats.candidate_pairs, 1u);
+        EXPECT_EQ(stats.exact_checks, 1u);
+    }
+
+    TEST(FindIntersectionsBvhTest, ContinuesAfterFirstHitAndMarksBothMembers)
+    {
+        const std::vector<Triangle3> scene{
+            {{Point3{0.0, 0.0, 0.0}, Point3{4.0, 0.0, 0.0}, Point3{0.0, 4.0, 0.0}}},
+            {{Point3{0.5, 0.5, 0.0}, Point3{0.5, 0.5, 0.0}, Point3{0.5, 0.5, 0.0}}},
+            {{Point3{2.0, 0.5, 0.0}, Point3{2.0, 0.5, 0.0}, Point3{2.0, 0.5, 0.0}}}
+        };
+        BvhSearchStats stats;
+        EXPECT_EQ(FindIntersectionsBvh(scene, stats), (std::vector<bool>{true, true, true}));
+        EXPECT_EQ(stats.candidate_pairs, 3u);
+        EXPECT_EQ(stats.exact_checks, 2u);
+    }
+
+    TEST(FindIntersectionsBvhTest, InterleavedClustersKeepOriginalMaskIndexes)
+    {
+        auto scene = MakeInterleavedCandidateScene();
+        scene.push_back(scene[3]);
+        scene.push_back(scene[4]);
+        BvhSearchStats stats;
+        EXPECT_EQ(FindIntersectionsBvh(scene, stats),
+                  (std::vector<bool>{false, false, false, true, true, false, false, false, true, true}));
+        EXPECT_EQ(stats.exact_checks, 2u);
+    }
+
+    TEST(FindIntersectionsBvhTest, IncludesSegmentCrossingAndVertexContact)
+    {
+        const std::vector<Triangle3> scene{
+            {{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}},
+            {{Point3{0.5, 0.5, -1.0}, Point3{0.5, 0.5, 1.0}, Point3{0.5, 0.5, 0.0}}},
+            {{Point3{2.0, 0.0, 0.0}, Point3{3.0, 0.0, 0.0}, Point3{2.0, -1.0, 0.0}}},
+            {{Point3{20.0, 0.0, 0.0}, Point3{21.0, 0.0, 0.0}, Point3{20.0, 1.0, 0.0}}},
+            {{Point3{40.0, 0.0, 0.0}, Point3{40.0, 0.0, 0.0}, Point3{40.0, 0.0, 0.0}}}
+        };
+        BvhSearchStats stats;
+        EXPECT_EQ(FindIntersectionsBvh(scene, stats), (std::vector<bool>{true, true, true, false, false}));
+        EXPECT_EQ(FindIntersectionsBvh(scene, stats), FindIntersectionsBruteForce(scene));
+    }
+
+    TEST(FindIntersectionsBvhTest, DenseSceneChecksEveryUnorderedPairExactlyOnce)
+    {
+        const Triangle3 triangle{{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 2.0, 0.0}}};
+        const std::vector<Triangle3> scene(17, triangle);
+        const std::size_t pair_count = scene.size() * (scene.size() - 1) / 2;
+        BvhSearchStats stats;
+        EXPECT_EQ(FindIntersectionsBvh(scene, stats), std::vector<bool>(scene.size(), true));
+        EXPECT_EQ(stats.candidate_pairs, pair_count);
+        EXPECT_EQ(stats.exact_checks, pair_count);
+    }
+
+    TEST(FindIntersectionsBvhTest, SeparatedScenePrunesPairsBeforeExactChecks)
+    {
+        const auto scene = MakeSeparatedBvhScene(65);
+        BvhSearchStats stats;
+        EXPECT_EQ(FindIntersectionsBvh(scene, stats), std::vector<bool>(scene.size(), false));
+        EXPECT_EQ(stats.exact_checks, 0u);
+        EXPECT_LT(stats.candidate_pairs, scene.size() * (scene.size() - 1) / 2);
+    }
+
+    TEST(FindIntersectionsBvhTest, ReusingStatisticsDoesNotAccumulateEarlierCalls)
+    {
+        const Point3 point{1.0, 2.0, 3.0};
+        const Triangle3 triangle{{point, point, point}};
+        BvhSearchStats stats;
+        FindIntersectionsBvh(std::vector<Triangle3>(8, triangle), stats);
+        ASSERT_EQ(stats.exact_checks, 28u);
+        EXPECT_EQ(FindIntersectionsBvh({triangle, triangle}, stats), (std::vector<bool>{true, true}));
+        EXPECT_EQ(stats.candidate_pairs, 1u);
+        EXPECT_EQ(stats.exact_checks, 1u);
+        EXPECT_TRUE(FindIntersectionsBvh({}, stats).empty());
+        EXPECT_EQ(stats.candidate_pairs, 0u);
+        EXPECT_EQ(stats.exact_checks, 0u);
+    }
+
+    TEST(FindIntersectionsBvhTest, DeterministicMixedScenesMatchBruteForceAfterShuffling)
+    {
+        std::mt19937 generator(20261104);
+        std::uniform_int_distribution<int> coordinate(-5, 5);
+        for (std::size_t sample = 0; sample < 30; ++sample)
+        {
+            SCOPED_TRACE(sample);
+            std::vector<Triangle3> scene;
+            for (std::size_t i = 0; i < 19; ++i)
+            {
+                Triangle3 triangle{};
+                for (Point3& point : triangle.vertices)
+                {
+                    point.cord_x = coordinate(generator);
+                    point.cord_y = coordinate(generator);
+                    point.cord_z = sample % 2 == 0 ? 0 : coordinate(generator);
+                }
+                if (i % 5 == 0)
+                    triangle.vertices[2] = triangle.vertices[1];
+                if (i % 7 == 0)
+                    triangle.vertices[1] = triangle.vertices[2] = triangle.vertices[0];
+                scene.push_back(triangle);
+            }
+            for (std::size_t order = 0; order < 2; ++order)
+            {
+                SCOPED_TRACE(order);
+                BvhSearchStats stats;
+                EXPECT_EQ(FindIntersectionsBvh(scene, stats), FindIntersectionsBruteForce(scene));
+
+                std::size_t overlapping_box_pairs = 0;
+                for (std::size_t i = 0; i < scene.size(); ++i)
+                {
+                    for (std::size_t j = i + 1; j < scene.size(); ++j)
+                    {
+                        if (BoundsOverlap(Bounds(scene[i]), Bounds(scene[j])))
+                            ++overlapping_box_pairs;
+                    }
+                }
+                EXPECT_EQ(stats.exact_checks, overlapping_box_pairs);
+                EXPECT_LE(stats.exact_checks, stats.candidate_pairs);
+                EXPECT_LE(stats.candidate_pairs, scene.size() * (scene.size() - 1) / 2);
+                std::shuffle(scene.begin(), scene.end(), generator);
+            }
+        }
+    }
+
+    TEST(CollectCandidatesTest, AppendsOnlyRequestedSubtreeToExistingResult)
+    {
+        const Bvh bvh = BuildBvh(MakeInterleavedCandidateScene());
+        ASSERT_FALSE(bvh.nodes.empty());
+        const BvhNode& root = bvh.nodes[0];
+        ASSERT_FALSE(root.IsLeaf());
+        ASSERT_LT(root.right, bvh.nodes.size());
+        std::vector<std::size_t> result{123456};
+        CollectCandidates(bvh, {{-10.0, -1.0, -1.0}, {200.0, 1.0, 1.0}}, root.right, result);
+        ASSERT_EQ(result.size(), 5u);
+        EXPECT_EQ(result.front(), 123456u);
+        ExpectCandidateIndexes(std::vector<std::size_t>(result.begin() + 1, result.end()), {0, 2, 4, 6});
     }
 }
