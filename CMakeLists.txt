@@ -56,6 +56,10 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(triangle_render_data PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+target_link_libraries(window_demo PRIVATE
+    triangle_input triangle_geometry triangle_render_data
+)
+
 add_executable(bvh_benchmark src/bvh_benchmark.cpp)
 target_link_libraries(bvh_benchmark PRIVATE triangle_geometry)
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

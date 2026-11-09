@@ -13,4 +13,5 @@ namespace triangles
     };
 
     std::vector<RenderVertex> BuildRenderVertices(const std::vector<Triangle3>& scene,const std::vector<bool>& mask);
+    void FitRenderVerticesToView(std::vector<RenderVertex>& vertices);
 }
