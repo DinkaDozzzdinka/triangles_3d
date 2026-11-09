@@ -48,6 +48,14 @@ target_include_directories(triangle_geometry PUBLIC
 
 target_link_libraries(triangles_3d PRIVATE triangle_geometry)
 
+add_library(triangle_render_data STATIC src/render_data.cpp)
+target_include_directories(triangle_render_data PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(triangle_render_data PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 add_executable(bvh_benchmark src/bvh_benchmark.cpp)
 target_link_libraries(bvh_benchmark PRIVATE triangle_geometry)
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -101,4 +109,10 @@ if (BUILD_TESTING)
         tests/bvh_test.cpp)
     target_link_libraries(geometry_tests PRIVATE triangle_geometry GTest::gtest_main)
     gtest_discover_tests(geometry_tests)
+
+    add_executable(render_data_tests tests/render_data_test.cpp)
+    target_link_libraries(render_data_tests PRIVATE
+        triangle_render_data triangle_input triangle_geometry GTest::gtest_main
+    )
+    gtest_discover_tests(render_data_tests)
     endif()
